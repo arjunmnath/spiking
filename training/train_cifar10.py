@@ -3,7 +3,7 @@ import yaml
 import torch
 
 from data.cifar10_dataset import CIFAR10DataModule
-from models.cifar10_backbone import SimpleCNN
+from models import ImageClassifier
 from engine.cifar10_trainer import Trainer
 from utils.ddp_utils import init_distributed, cleanup, is_main_process
 

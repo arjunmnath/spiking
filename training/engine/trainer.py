@@ -12,7 +12,9 @@ from torch.optim.lr_scheduler import LinearLR, SequentialLR
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from config_classes import Snapshot, TrainingConfig
+from dataclasses import Snapshot, TrainingConfig
+
+from torchmetrics import Metric
 from utils import upload_to_s3
 
 logger = logging.getLogger(__name__)
@@ -23,8 +25,8 @@ class Trainer:
         self,
         config: TrainingConfig,
         model: torch.nn.Module,
-        optimizer,
-        metrices,
+        optimizer: torch.optim.Optimizer,
+        metrices: List[Metric],
         train_dataset: Dataset,
         test_dataset: Dataset,
         use_ddp: bool = True,
