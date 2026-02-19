@@ -1,6 +1,6 @@
 import torchvision.transforms as transforms
 
-def get_cifar10_transforms():
+def get_transforms():
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
