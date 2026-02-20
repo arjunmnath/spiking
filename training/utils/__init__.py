@@ -1,1 +1,1 @@
-import training.utils.ddp_utils as ddp
+import training.utils.ddp
