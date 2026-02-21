@@ -3,7 +3,7 @@ import os
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.amp import autocast, GradScaler
 # from utils.ddp import is_main_process, reduce_tensor
-from training.utils.ddp_utils import reduce_tensor
+from training.utils.ddp import reduce_tensor
 import torch.distributed as dist
 
 class Trainer:

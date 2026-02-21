@@ -5,7 +5,7 @@ import torch
 from data.cifar10_dataset import CIFAR10DataModule
 from models import ImageClassifier
 from engine.cifar10_trainer import Trainer
-from utils.ddp_utils import init_distributed, cleanup, is_main_process
+from utils.ddp import init_distributed, cleanup, is_main_process
 
 def load_config(path="configs/cifar10.yaml"):
     if not os.path.exists(path):
