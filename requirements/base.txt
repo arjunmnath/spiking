@@ -1,0 +1,5 @@
+tqdm
+torch
+typing_extensions
+boto3
+hydra-core
