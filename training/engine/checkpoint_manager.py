@@ -1,9 +1,7 @@
-import io
+import threading
 import os
-import re
 import json
 import logging
-from dataclasses import asdict
 from pathlib import Path
 
 import torch
@@ -16,7 +14,7 @@ import shutil
 import tempfile
 
 from training.configs import Snapshot
-from training.utils.ddp import get_world_size
+from training.utils.ddp import get_world_size, barrier, get_rank
 from training.utils.logging import setup_default_logging
 from training.utils.common import get_base_dir
 
@@ -29,10 +27,10 @@ def log0(message):
 
 
 class CheckpointManager:
-    def __init__(self, bucket_mame: str):
+    def __init__(self, bucket_name: str):
         self.checkpoint_dir = get_base_dir() / "checkpoints"
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        self.bucket_name = bucket_mame
+        self.bucket_name = bucket_name
         self.s3 = boto3.client("s3")
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._created_checkpoints = []
@@ -71,44 +69,38 @@ class CheckpointManager:
             torch.save(optimizer_data, optimizer_path)
             logger.info(f"Saved optimizer state to: {optimizer_path}")
 
-        if rank == 0:
-            self._executor.submit(
-                self._archive_and_upload,
-                check_point_path,
-            )
-
     def _archive_and_upload(self, checkpoint_path: Path):
-
         # verifying the payloads to be uploaded
-        payload_filename_pattern = re.compile(r"^(model|meta|optim_rank).*\.(json|pt)$")
-        payload_filenames = [
-            p for p in checkpoint_path.iterdir()
-            if p.is_file() and payload_filename_pattern.fullmatch(p.name)
-        ]
-        if (
-            not checkpoint_path.exists()
-            or not checkpoint_path.is_dir()
-            or not len(payload_filenames) == get_world_size() + 2
-        ):
-            logger.warning(f"Malformed checkpoint payload, expected files {get_world_size() + 2}, got {len(payload_filenames)}")
+        payload_filenames = list(checkpoint_path.iterdir())
+        has_model = any(p.name == "model.pt" for p in payload_filenames)
+        has_meta = any(p.name == "meta.json" for p in payload_filenames)
+        optim_files = [p for p in payload_filenames if p.name.startswith("optim_rank")]
+        if not (has_model and has_meta and len(optim_files) == get_world_size()):
+            logger.warning(f"Malformed checkpoint payload (has_model: {has_model}, has_meta: {has_meta}, optim_files: {len(optim_files)})")
             return
-        # add lock
-        return
-        archive_path = checkpoint_path.with_suffix(".tar.gz")
-        shutil.make_archive(
-            base_name=str(archive_path).replace(".tar.gz", ""),
-            format="gztar",
-            root_dir=checkpoint_path.parent,
-            base_dir=checkpoint_path.name,
-        )
-        self.upload_to_s3(archive_path, archive_path.name)
-        archive_path.unlink(missing_ok=True)
+
+        with self._upload_lock:
+            archive_path = checkpoint_path.with_suffix(".tar.gz")
+            shutil.make_archive(
+                base_name=str(archive_path).replace(".tar.gz", ""),
+                format="gztar",
+                root_dir=checkpoint_path.parent,
+                base_dir=checkpoint_path.name,
+            )
+            try:
+                self.upload_to_s3(archive_path, archive_path.name) # upload to s3 bucket
+            except Exception as e:
+                logger.exception("Failed to upload checkpoint", exc_info=e)
+            archive_path.unlink(missing_ok=True) # removes the archive
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        barrier()
         if exc_type is None:
-            for path in self._created_checkpoints:
-                self._archive_and_upload(path)
+            if get_rank() == 0:
+                for path in self._created_checkpoints:
+                    self._archive_and_upload(path)
+        barrier()
         self._executor.shutdown(wait=True)
