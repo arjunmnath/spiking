@@ -47,3 +47,16 @@ def reduce_tensor(tensor, op=dist.ReduceOp.SUM):
     dist.all_reduce(reduced, op=op)
     # Important: Do not divide by world_size here if you want SUM reduction as default.
     return reduced
+
+
+def get_world_size():
+    return 2
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_world_size()
+    return 1
+
+def get_rank():
+    """Returns current process rank. Defaults to 0 if DDP is off."""
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_rank()
+    return 0

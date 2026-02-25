@@ -1,56 +1,114 @@
 import io
 import os
+import re
+import json
 import logging
 from dataclasses import asdict
+from pathlib import Path
 
 import torch
 import boto3
 from urllib.parse import urlparse
 import fsspec
+
+from concurrent.futures import ThreadPoolExecutor
+import shutil
+import tempfile
+
 from training.configs import Snapshot
+from training.utils.ddp import get_world_size
 from training.utils.logging import setup_default_logging
+from training.utils.common import get_base_dir
 
 setup_default_logging()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("CheckpointManager")
+
 def log0(message):
     if int(os.environ.get('RANK', 0)) == 0:
         logger.info(message)
 
 
+class CheckpointManager:
+    def __init__(self, bucket_mame: str):
+        self.checkpoint_dir = get_base_dir() / "checkpoints"
+        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.bucket_name = bucket_mame
+        self.s3 = boto3.client("s3")
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._created_checkpoints = []
 
-def upload_to_s3(obj, dst):
-    buffer = io.BytesIO()
-    torch.save(obj, buffer)
-    buffer.seek(0)
-    dst = urlparse(dst)
-    boto3.client("s3").upload_fileobj(buffer, dst.netloc, dst.path.lstrip("/"))
+    def upload_to_s3(self, file_path: Path, s3_key: str | None = None):
+        if not file_path.exists():
+            raise FileNotFoundError(f"{file_path} does not exist")
 
+        s3_key = s3_key or file_path.name
+        with open(file_path, "rb") as f:
+            self.s3.upload_fileobj(
+                f,
+                self.bucket_name,
+                s3_key,
+            )
+        logger.info(f"Uploaded {file_path.name} to s3://{self.bucket_name}/{s3_key}")
 
-def _load_snapshot(self):
-    try:
-        snapshot = fsspec.open(self.config.snapshot_path)
-        with snapshot as f:
-            snapshot_data = torch.load(f, map_location="cpu")
-    except FileNotFoundError:
-        logger.info("Snapshot not found. Training model from scratch")
+    def save_checkpoint(self, step, model_data, optimizer_data, meta_data, rank=0):
+        check_point_path = self.checkpoint_dir / f"ckpt_{step:06d}"
+        check_point_path.mkdir(parents=True, exist_ok=True)
+
+        if rank == 0:
+            model_path = check_point_path / "model.pt"
+            torch.save(model_data, model_path.as_posix())
+            logger.info(f"Saved model parameters to: {model_path}")
+
+            meta_path = check_point_path / f"meta.json"
+            with open(meta_path, "w") as f:
+                json.dump(meta_data, f, indent=2)
+
+            logger.info(f"Saved metadata to: {meta_path}")
+            self._created_checkpoints.append(check_point_path)
+
+        if optimizer_data is not None:
+            optimizer_path = check_point_path / f"optim_rank{rank:d}.pt"
+            torch.save(optimizer_data, optimizer_path)
+            logger.info(f"Saved optimizer state to: {optimizer_path}")
+
+        if rank == 0:
+            self._executor.submit(
+                self._archive_and_upload,
+                check_point_path,
+            )
+
+    def _archive_and_upload(self, checkpoint_path: Path):
+
+        # verifying the payloads to be uploaded
+        payload_filename_pattern = re.compile(r"^(model|meta|optim_rank).*\.(json|pt)$")
+        payload_filenames = [
+            p for p in checkpoint_path.iterdir()
+            if p.is_file() and payload_filename_pattern.fullmatch(p.name)
+        ]
+        if (
+            not checkpoint_path.exists()
+            or not checkpoint_path.is_dir()
+            or not len(payload_filenames) == get_world_size() + 2
+        ):
+            logger.warning(f"Malformed checkpoint payload, expected files {get_world_size() + 2}, got {len(payload_filenames)}")
+            return
+        # add lock
         return
+        archive_path = checkpoint_path.with_suffix(".tar.gz")
+        shutil.make_archive(
+            base_name=str(archive_path).replace(".tar.gz", ""),
+            format="gztar",
+            root_dir=checkpoint_path.parent,
+            base_dir=checkpoint_path.name,
+        )
+        self.upload_to_s3(archive_path, archive_path.name)
+        archive_path.unlink(missing_ok=True)
 
-    snapshot = Snapshot(**snapshot_data)
-    self.model.load_state_dict(snapshot.model_state)
-    self.optimizer.load_state_dict(snapshot.optimizer_state)
-    self.epochs_run = snapshot.finished_epoch
-    logger.info(f"Resumig training from snapshot at Epoch {self.epochs_run}")
+    def __enter__(self):
+        return self
 
-def _save_snapshot(self, epoch):
-    # capture snapshot
-    model = self.model
-    raw_model = model.module if hasattr(model, "module") else model
-    snapshot = Snapshot(
-        model_state=raw_model.state_dict(),
-        optimizer_state=self.optimizer.state_dict(),
-        finished_epoch=epoch,
-    )
-    # save snapshot
-    snapshot = asdict(snapshot)
-    upload_to_s3(snapshot, self.config.snapshot_path)
-    logger.info(f"Snapshot saved at epoch {epoch}")
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            for path in self._created_checkpoints:
+                self._archive_and_upload(path)
+        self._executor.shutdown(wait=True)
