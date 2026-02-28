@@ -7,6 +7,7 @@ import re
 import logging
 import urllib.request
 from pathlib import Path
+import petname
 
 import torch
 import torch.distributed as dist
@@ -67,3 +68,10 @@ class DummyWandb:
         pass
     def finish(self):
         pass
+
+def get_run_id():
+    _id = os.getenv("RUN_ID")
+    if not _id:
+        _id = petname.Generate(3, "-")
+        os.environ["RUN_ID"] = _id
+    return _id

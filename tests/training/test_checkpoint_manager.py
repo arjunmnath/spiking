@@ -20,8 +20,8 @@ def test_initialization(monkeypatch, tmp_path):
     manager = CheckpointManager("test-bucket")
 
     assert manager.bucket_name == "test-bucket"
-    assert manager.checkpoint_dir == tmp_path / "checkpoints"
-    assert manager.checkpoint_dir.exists()
+    assert manager.checkpoints_dir == tmp_path / "checkpoints"
+    assert manager.checkpoints_dir.exists()
 
 
 def test_upload_to_s3(monkeypatch, tmp_path):
@@ -41,7 +41,7 @@ def test_upload_to_s3(monkeypatch, tmp_path):
     file_path = tmp_path / "test.tar.gz"
     file_path.write_bytes(b"data")
 
-    manager.upload_to_s3(file_path)
+    manager._upload_to_s3(file_path)
 
     mock_s3.upload_fileobj.assert_called_once()
 
@@ -56,7 +56,7 @@ def test_upload_to_s3_missing_file(monkeypatch, tmp_path):
     missing_file = tmp_path / "does_not_exist.tar.gz"
 
     with pytest.raises(FileNotFoundError):
-        manager.upload_to_s3(missing_file)
+        manager._upload_to_s3(missing_file)
 
 def test_save_checkpoint_rank0(monkeypatch, tmp_path):
     monkeypatch.setattr(

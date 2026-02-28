@@ -21,6 +21,7 @@ class ColoredFormatter(logging.Formatter):
             record.levelname = f"{self.COLORS[levelname]}{self.BOLD}{levelname}{self.RESET}"
         # Format the message
         message = super().format(record)
+        message = re.sub(r'<b>(.*?)</b>', rf'{self.BOLD}\1{self.RESET}', message)
         # Add color to specific parts of the message
         if levelname == 'INFO':
             # Highlight numbers and percentages
