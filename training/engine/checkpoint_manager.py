@@ -14,7 +14,7 @@ from filelock import FileLock
 from concurrent.futures import ThreadPoolExecutor
 import shutil
 
-from training.utils.ddp import get_world_size, barrier, get_rank
+from training.utils.ddp import get_world_size, barrier, get_rank, is_main_process
 from training.utils.logging import setup_default_logging
 from training.utils.common import get_base_dir, get_run_id
 
@@ -54,7 +54,7 @@ class CheckpointManager:
         check_point_path = self.checkpoints_dir / f"{get_run_id()}_{step:06d}"
         check_point_path.mkdir(parents=True, exist_ok=True)
         self._created_checkpoint = check_point_path
-        if rank == 0:
+        if is_main_process():
             model_path = check_point_path / "model.pt"
             torch.save(model_data, model_path.as_posix())
             logger.info(f"Saved model parameters to: {model_path}")
@@ -100,7 +100,7 @@ class CheckpointManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         barrier()
         if exc_type is None:
-            if get_rank() == 0:
+            if is_main_process():
                 self._archive_and_upload(self._created_checkpoint)
         barrier()
         self._executor.shutdown(wait=True)

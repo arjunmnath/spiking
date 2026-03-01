@@ -1,5 +1,5 @@
 import torch.nn as nn
-from blocks import ConvBlock
+from .blocks import ConvBlock
 
 
 class ImageClassifier(nn.Module):
