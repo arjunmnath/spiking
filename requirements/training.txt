@@ -2,7 +2,6 @@ torchmetrics
 torchvision
 torchinfo
 wandb
-tarfile
 filelock
 petname
 optuna
