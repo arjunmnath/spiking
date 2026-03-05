@@ -2,12 +2,11 @@ import os
 import torch
 import torch.distributed as dist
 from training.utils.common import print0
-from training.utils.logging import  setup_default_logging
+from training.utils.logging import setup_default_logging
 import logging
 
 setup_default_logging()
 logger = logging.getLogger(__name__)
-
 
 
 def is_ddp_requested() -> bool:
@@ -40,6 +39,7 @@ def reduce_tensor(tensor, op=dist.ReduceOp.SUM):
     if not is_initialized():
         return tensor
 
+    dist.barrier()
     reduced = tensor.clone()
     dist.all_reduce(reduced, op=op)
     # Important: Do not divide by world_size here if you want SUM reduction as default.
@@ -50,6 +50,7 @@ def get_world_size():
     if dist.is_available() and dist.is_initialized():
         return dist.get_world_size()
     return 1
+
 
 def get_rank():
     """Returns current process rank. Defaults to 0 if DDP is off."""
@@ -65,9 +66,9 @@ def barrier():
 
 def get_dist_info():
     if is_ddp_requested():
-        ddp_rank = int(os.environ['RANK'])
-        ddp_local_rank = int(os.environ['LOCAL_RANK'])
-        ddp_world_size = int(os.environ['WORLD_SIZE'])
+        ddp_rank = int(os.environ["RANK"])
+        ddp_local_rank = int(os.environ["LOCAL_RANK"])
+        ddp_world_size = int(os.environ["WORLD_SIZE"])
         return True, ddp_rank, ddp_local_rank, ddp_world_size
     else:
         return False, 0, 0, 1
@@ -83,6 +84,7 @@ def autodetect_device_type():
     print0(f"Autodetected device type: {device_type}")
     return device_type
 
+
 def compute_init(device_type=None):
     if not device_type:
         device_type = autodetect_device_type()
@@ -90,21 +92,31 @@ def compute_init(device_type=None):
     assert device_type in ["cuda", "mps", "cpu"], "Invalid device type atm"
 
     if device_type == "cuda":
-        assert torch.cuda.is_available(), "Your PyTorch installation is not configured for CUDA but device_type is 'cuda'"
+        assert (
+            torch.cuda.is_available()
+        ), "Your PyTorch installation is not configured for CUDA but device_type is 'cuda'"
     if device_type == "mps":
-        assert torch.backends.mps.is_available(), "Your PyTorch installation is not configured for MPS but device_type is 'mps'"
+        assert (
+            torch.backends.mps.is_available()
+        ), "Your PyTorch installation is not configured for MPS but device_type is 'mps'"
 
     if device_type == "cuda":
         torch.set_float32_matmul_precision(
-            "high")  # uses tf32 instead of fp32 for matmuls, see https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
+            "high"
+        )  # uses tf32 instead of fp32 for matmuls, see https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
 
     _is_ddp_requested, ddp_rank, ddp_local_rank, ddp_world_size = get_dist_info()
 
-    if _is_ddp_requested and device_type == "cuda":
-        print("settingup cuda")
-        device = torch.device("cuda", ddp_local_rank)
-        torch.cuda.set_device(device)  # make "cuda" default to this device
-        dist.init_process_group(backend="nccl", device_id=device)
+    if _is_ddp_requested:
+        if device_type == "cuda":
+            print("settingup cuda")
+            device = torch.device("cuda", ddp_local_rank)
+            torch.cuda.set_device(device)  # make "cuda" default to this device
+            dist.init_process_group(backend="nccl", device_id=device)
+        else:
+            device = torch.device(device_type)
+            # Use gloo for mps or cpu
+            dist.init_process_group(backend="gloo")
         dist.barrier()
     else:
         device = torch.device(device_type)

@@ -7,14 +7,12 @@ from training.engine.checkpoint_manager import CheckpointManager
 
 def test_initialization(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     mock_s3 = MagicMock()
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.boto3.client",
-        lambda _: mock_s3
+        "training.engine.checkpoint_manager.boto3.client", lambda _: mock_s3
     )
 
     manager = CheckpointManager("test-bucket")
@@ -26,14 +24,12 @@ def test_initialization(monkeypatch, tmp_path):
 
 def test_upload_to_s3(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     mock_s3 = MagicMock()
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.boto3.client",
-        lambda _: mock_s3
+        "training.engine.checkpoint_manager.boto3.client", lambda _: mock_s3
     )
 
     manager = CheckpointManager("bucket")
@@ -45,10 +41,10 @@ def test_upload_to_s3(monkeypatch, tmp_path):
 
     mock_s3.upload_fileobj.assert_called_once()
 
+
 def test_upload_to_s3_missing_file(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     manager = CheckpointManager("bucket")
@@ -58,16 +54,15 @@ def test_upload_to_s3_missing_file(monkeypatch, tmp_path):
     with pytest.raises(FileNotFoundError):
         manager._upload_to_s3(missing_file)
 
+
 def test_save_checkpoint_rank0(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     mock_s3 = MagicMock()
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.boto3.client",
-        lambda _: mock_s3
+        "training.engine.checkpoint_manager.boto3.client", lambda _: mock_s3
     )
 
     manager = CheckpointManager("bucket")
@@ -91,10 +86,10 @@ def test_save_checkpoint_rank0(monkeypatch, tmp_path):
 
     manager._executor.submit.assert_called_once()
 
+
 def test_save_checkpoint_non_zero_rank(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     manager = CheckpointManager("bucket")
@@ -115,16 +110,15 @@ def test_save_checkpoint_non_zero_rank(monkeypatch, tmp_path):
 
     manager._executor.submit.assert_not_called()
 
+
 def test_archive_and_upload(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     mock_s3 = MagicMock()
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.boto3.client",
-        lambda _: mock_s3
+        "training.engine.checkpoint_manager.boto3.client", lambda _: mock_s3
     )
 
     manager = CheckpointManager("bucket")
@@ -145,8 +139,7 @@ def test_archive_and_upload(monkeypatch, tmp_path):
 
 def test_context_manager_success(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     manager = CheckpointManager("bucket")
@@ -161,8 +154,7 @@ def test_context_manager_success(monkeypatch, tmp_path):
 
 def test_context_manager_exception(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "training.engine.checkpoint_manager.get_base_dir",
-        lambda: tmp_path
+        "training.engine.checkpoint_manager.get_base_dir", lambda: tmp_path
     )
 
     manager = CheckpointManager("bucket")

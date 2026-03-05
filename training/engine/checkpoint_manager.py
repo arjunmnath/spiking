@@ -23,7 +23,7 @@ logger = logging.getLogger("CheckpointManager")
 
 
 def log0(message):
-    if int(os.environ.get('RANK', 0)) == 0:
+    if int(os.environ.get("RANK", 0)) == 0:
         logger.info(message)
 
 
@@ -50,7 +50,9 @@ class CheckpointManager:
         logger.info(f"Uploaded {file_path.name} to s3://{self.bucket_name}/{s3_key}")
 
     def save_checkpoint(self, model_data, optimizer_data, meta_data, step, rank=0):
-        assert type(model_data) == OrderedDict and type(optimizer_data) == OrderedDict, "Expected a state dict"
+        assert (
+            type(model_data) == OrderedDict and type(optimizer_data) == OrderedDict
+        ), "Expected a state dict"
         check_point_path = self.checkpoints_dir / f"{get_run_id()}_{step:06d}"
         check_point_path.mkdir(parents=True, exist_ok=True)
         self._created_checkpoint = check_point_path
@@ -78,7 +80,8 @@ class CheckpointManager:
         optim_files = [p for p in payload_filenames if p.name.startswith("optim_rank")]
         if not (has_model and has_meta and len(optim_files) == get_world_size()):
             logger.warning(
-                f"Malformed checkpoint payload (has_model: {has_model}, has_meta: {has_meta}, optim_files: {len(optim_files)})")
+                f"Malformed checkpoint payload (has_model: {has_model}, has_meta: {has_meta}, optim_files: {len(optim_files)})"
+            )
             return
 
         archive_path = checkpoint_path.with_suffix(".tar.gz")
@@ -105,10 +108,24 @@ class CheckpointManager:
         barrier()
         self._executor.shutdown(wait=True)
 
-    def build_model(self, model, model_config_template, checkpoint_dir, device, phase, dirty_load=False, rank=0):
+    def build_model(
+        self,
+        model,
+        model_config_template,
+        checkpoint_dir,
+        device,
+        phase,
+        dirty_load=False,
+        rank=0,
+    ):
         assert phase in ["train", "eval"], f"Invalid phase: {phase}"
-        model_data, optimizer_data, meta_data = self._load_checkpoints(checkpoint_dir, device, dirty_load=dirty_load,
-                                                                       load_optimizer=False, rank=rank)
+        model_data, optimizer_data, meta_data = self._load_checkpoints(
+            checkpoint_dir,
+            device,
+            dirty_load=dirty_load,
+            load_optimizer=False,
+            rank=rank,
+        )
         if device.type in {"cpu", "mps"}:
             model_data = {
                 k: v.float() if v.dtype == torch.bfloat16 else v
@@ -129,31 +146,56 @@ class CheckpointManager:
             model.train()
         return model, meta_data
 
-    def build_model_from_run_id(self, model, model_config_template, run_id, device, phase, dirty_load=False, rank=0):
+    def build_model_from_run_id(
+        self,
+        model,
+        model_config_template,
+        run_id,
+        device,
+        phase,
+        dirty_load=False,
+        rank=0,
+    ):
         assert phase in ["train", "eval"]
         model_tag = self._find_largest_model(run_id)
         assert model_tag is not None, "no model tag found"
         ckpt_archive_path = self._download_file_with_lock(model_tag)
         ckpt_path = self.checkpoints_dir / model_tag.replace(".tar.gz", "")
 
-        assert ckpt_archive_path.exists() and ckpt_archive_path.is_file() and ckpt_archive_path.suffix == ".gz"
+        assert (
+            ckpt_archive_path.exists()
+            and ckpt_archive_path.is_file()
+            and ckpt_archive_path.suffix == ".gz"
+        )
         if not ckpt_path.exists():
             with tarfile.open(ckpt_archive_path, "r:gz") as tar:
                 tar.extractall(path=self.checkpoints_dir)
                 logger.info(f"Extracted checkpoint data to {self.checkpoints_dir}")
             ckpt_archive_path.unlink()
 
-        return self.build_model(model, model_config_template, self.checkpoints_dir / model_tag.replace(".tar.gz", ""),
-                                device, phase, dirty_load=dirty_load, rank=rank)
+        return self.build_model(
+            model,
+            model_config_template,
+            self.checkpoints_dir / model_tag.replace(".tar.gz", ""),
+            device,
+            phase,
+            dirty_load=dirty_load,
+            rank=rank,
+        )
 
-
-    def _load_checkpoints(self, checkpoint_dir, device, dirty_load=False, load_optimizer=False, rank=0):
+    def _load_checkpoints(
+        self, checkpoint_dir, device, dirty_load=False, load_optimizer=False, rank=0
+    ):
         model_path = checkpoint_dir / f"model.pt"
-        model_data = torch.load(model_path, map_location=device, weights_only=not dirty_load)
+        model_data = torch.load(
+            model_path, map_location=device, weights_only=not dirty_load
+        )
         optimizer_data = None
         if load_optimizer:
             optimizer_path = os.path.join(checkpoint_dir, f"optim_rank{rank:d}.pt")
-            optimizer_data = torch.load(optimizer_path, map_location=device, weights_only=not dirty_load)
+            optimizer_data = torch.load(
+                optimizer_path, map_location=device, weights_only=not dirty_load
+            )
         meta_path = os.path.join(checkpoint_dir, f"meta.json")
         with open(meta_path, "r", encoding="utf-8") as f:
             meta_data = json.load(f)
@@ -179,7 +221,11 @@ class CheckpointManager:
 
     def _list_s3_files(self):
         response = self.s3.list_objects_v2(Bucket=self.bucket_name)
-        return list(map(lambda x: x['Key'], response['Contents'])) if 'Contents' in response else []
+        return (
+            list(map(lambda x: x["Key"], response["Contents"]))
+            if "Contents" in response
+            else []
+        )
 
     def _download_file_with_lock(self, object_key: str):
         temp_dir_path = get_base_dir() / "downloads"
@@ -188,5 +234,7 @@ class CheckpointManager:
         lock = FileLock(lock_file)
         with lock:
             self.s3.download_file(self.bucket_name, object_key, download_path)
-            logger.info("downloaded <b>{}</b> to <b>{}</b>".format(object_key, download_path))
+            logger.info(
+                "downloaded <b>{}</b> to <b>{}</b>".format(object_key, download_path)
+            )
             return download_path

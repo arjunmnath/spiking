@@ -25,6 +25,7 @@ def get_base_dir():
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir
 
+
 class DummyWandb:
     """Useful if we wish to not use wandb but have all the same signatures"""
 
@@ -47,6 +48,6 @@ def get_run_id():
 
 
 def print0(s="", **kwargs):
-    ddp_rank = int(os.environ.get('RANK', 0))
+    ddp_rank = int(os.environ.get("RANK", 0))
     if ddp_rank == 0:
         print(s, **kwargs)

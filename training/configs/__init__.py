@@ -37,7 +37,6 @@ class DataConfig:
     precompute: bool
 
 
-
 @dataclass
 class Snapshot:
     model_state: "OrderedDict[str, torch.Tensor]"
