@@ -174,8 +174,8 @@ def objective(trial, args, device, is_ddp):
     model = build_model(trial).to(device)
     if is_ddp:
         model = DDP(model, device_ids=[device.index] if device.type == "cuda" else None)
-
-    wandb.watch(model)
+    if is_main_process():
+        wandb.watch(model)
     optimizer = build_optimizer(trial, model if not is_ddp else model.module)
     criterion = nn.CrossEntropyLoss()
 

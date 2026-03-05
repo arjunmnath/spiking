@@ -1,5 +1,4 @@
 tqdm
-yaml
 torch
 typing_extensions
 boto3
