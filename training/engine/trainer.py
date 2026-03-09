@@ -10,6 +10,8 @@ from torch.utils.data import DataLoader
 
 from training.engine.checkpoint_manager import CheckpointManager
 from training.utils.ddp import is_main_process, reduce_tensor, get_world_size, get_rank
+import wandb
+from torchmetrics import MetricCollection, Accuracy, Precision, Recall, F1Score, AUROC, AveragePrecision, ConfusionMatrix, Specificity, MatthewsCorrCoef
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +70,26 @@ class Trainer:
 
         self.epochs_run = 0
 
-    def _run_epoch(self, epoch: int, phase: str) -> Tuple[float, float]:
+        metric_collection = MetricCollection({
+            'acc': Accuracy(task="multiclass", num_classes=10),
+            'acc_top5': Accuracy(task="multiclass", num_classes=10, top_k=5),
+            'balanced_acc': Accuracy(task="multiclass", num_classes=10, average="macro"),
+            'precision': Precision(task="multiclass", num_classes=10, average="macro"),
+            'recall': Recall(task="multiclass", num_classes=10, average="macro"),
+            'f1_macro': F1Score(task="multiclass", num_classes=10, average="macro"),
+            'f1_micro': F1Score(task="multiclass", num_classes=10, average="micro"),
+            'f1_weighted': F1Score(task="multiclass", num_classes=10, average="weighted"),
+            'auroc': AUROC(task="multiclass", num_classes=10),
+            'pr_auc': AveragePrecision(task="multiclass", num_classes=10),
+            # ConfusionMatrix(task="multiclass", num_classes=10) # Logged manually due to non-scalar type
+            'specificity': Specificity(task="multiclass", num_classes=10, average="macro"),
+            'mcc': MatthewsCorrCoef(task="multiclass", num_classes=10),
+        }).to(device)
+
+        self.train_metrics = metric_collection.clone(prefix="train_")
+        self.val_metrics = metric_collection.clone(prefix="val_")
+
+    def _run_epoch(self, epoch: int, phase: str) -> Tuple[float, dict]:
         assert phase in ["train", "eval"]
         is_train = phase == "train"
 
@@ -81,8 +102,10 @@ class Trainer:
             self.model.eval()
             dataloader = self.test_loader
 
+        metrics = self.train_metrics if is_train else self.val_metrics
+        metrics.reset()
+
         total_loss = 0.0
-        correct = 0
         total = 0
 
         with torch.set_grad_enabled(is_train):
@@ -121,9 +144,8 @@ class Trainer:
                 if is_train:
                     self.scheduler.step()
 
-                _, predicted = outputs.max(1)
                 total += labels.size(0)
-                correct += predicted.eq(labels).sum().item()
+                metrics.update(outputs, labels)
 
                 reduced_loss = reduce_tensor(loss.detach())
                 if self.is_ddp:
@@ -138,14 +160,9 @@ class Trainer:
                     )
 
         avg_loss = total_loss / len(dataloader)
-        accuracy = 100.0 * correct / total
+        metrics_res = metrics.compute()
 
-        acc_tensor = torch.tensor(accuracy, device=self.device)
-        acc_tensor = reduce_tensor(acc_tensor)
-        if self.is_ddp:
-            acc_tensor /= get_world_size()
-
-        return avg_loss, acc_tensor.item()
+        return avg_loss, metrics_res
 
     def save_checkpoint(self, epoch: int):
         if self.config.bucket_name:
@@ -184,18 +201,32 @@ class Trainer:
 
     def train(self):
         for epoch in range(self.epochs_run, self.config.max_epochs):
-            train_loss, train_acc = self._run_epoch(epoch, phase="train")
+            train_loss, train_metrics = self._run_epoch(epoch, phase="train")
 
             if is_main_process():
                 logger.info(f"--- Epoch {epoch} Summary ---")
                 logger.info(
-                    f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.2f}%"
+                    f"Train Loss: {train_loss:.4f} | Train Acc: {train_metrics['train_acc'].item() * 100:.2f}%"
                 )
 
-            test_loss, test_acc = self._run_epoch(epoch, phase="eval")
+            val_loss, val_metrics = self._run_epoch(epoch, phase="eval")
 
             if is_main_process():
-                logger.info(f"Test Loss: {test_loss:.4f} | Test Acc: {test_acc:.2f}%")
+                logger.info(f"Test Loss: {val_loss:.4f} | Test Acc: {val_metrics['val_acc'].item() * 100:.2f}%")
+                
+                log_dict = {
+                    "epoch": epoch,
+                    "train_loss": train_loss,
+                    "val_loss": val_loss,
+                }
+                
+                for k, v in train_metrics.items():
+                    log_dict[k] = v.item()
+                for k, v in val_metrics.items():
+                    log_dict[k] = v.item()
+                    
+                if wandb.run is not None:
+                    wandb.log(log_dict)
 
             if (epoch + 1) % self.config.save_every == 0:
                 self.save_checkpoint(epoch + 1)

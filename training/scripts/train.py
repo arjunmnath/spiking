@@ -7,6 +7,8 @@ from training.data.dataset import CIFAR10
 from training.models.model import ImageClassifier
 from training.engine.trainer import Trainer, TrainingConfig
 from training.utils.ddp import compute_init, cleanup, is_main_process
+from training.utils.common import get_run_id
+import wandb
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,9 @@ def main():
     parser.add_argument("--max_epochs", type=int, default=20)
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--bucket_name", type=str, default="", help="S3 bucket name for checkpoints")
+    parser.add_argument("--run_name", type=str, default=None, help="W&B run name")
+    parser.add_argument("--project", type=str, default="cifar10-train", help="W&B project name")
+    parser.add_argument("--disable_wandb", action="store_true", help="Disable W&B tracking")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
@@ -41,6 +46,15 @@ def main():
 
     if is_main_process():
         logger.info(f"Initialized with device: {device}, is_ddp: {is_ddp_requested}")
+        
+        if not args.disable_wandb:
+            run_name = args.run_name if args.run_name else get_run_id()
+            wandb.init(
+                project=args.project,
+                name=run_name,
+                config=vars(args),
+                reinit=True
+            )
 
     # Setup data
     dataset = CIFAR10(batch_size=config.batch_size, num_workers=config.num_workers)
@@ -72,6 +86,9 @@ def main():
         logger.info("Starting training...")
 
     trainer.train()
+
+    if is_main_process() and not args.disable_wandb:
+        wandb.finish(quiet=True)
 
     cleanup()
 

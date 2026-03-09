@@ -11,6 +11,7 @@ import optuna
 import wandb
 from optuna.integration.pytorch_distributed import TorchDistributedTrial
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torchmetrics import MetricCollection, Accuracy, Precision, Recall, F1Score
 
 from training.data.dataset import CIFAR10
 from training.models.model import ImageClassifier
@@ -64,12 +65,12 @@ def build_optimizer(trial, model):
 
 
 def train_one_epoch(
-    model, dataloader, criterion, optimizer, device, scaler, grad_clip, is_ddp
+    model, dataloader, criterion, optimizer, device, scaler, grad_clip, metrics, is_ddp
 ):
     """Train the model for one epoch."""
     model.train()
+    metrics.reset()
     total_loss = 0.0
-    correct = 0
     total = 0
 
     for inputs, labels in dataloader:
@@ -96,28 +97,28 @@ def train_one_epoch(
             optimizer.step()
 
         total_loss += loss.item() * inputs.size(0)
-        _, predicted = outputs.max(1)
         total += labels.size(0)
-        correct += predicted.eq(labels).sum().item()
+        metrics.update(outputs, labels)
 
+    metrics_res = metrics.compute()
+    
     if is_ddp:
         t = torch.tensor(
-            [total_loss, correct, total], device=device, dtype=torch.float64
+            [total_loss, total], device=device, dtype=torch.float64
         )
         t = reduce_tensor(t)
-        avg_loss = (t[0] / t[2]).item()
-        accuracy = 100.0 * (t[1] / t[2]).item()
+        avg_loss = (t[0] / t[1]).item()
     else:
         avg_loss = total_loss / total
-        accuracy = 100.0 * correct / total
-    return avg_loss, accuracy
+        
+    return avg_loss, metrics_res
 
 
-def validate(model, dataloader, criterion, device, scaler, is_ddp):
+def validate(model, dataloader, criterion, device, scaler, metrics, is_ddp):
     """Evaluate the model on the validation dataset."""
     model.eval()
+    metrics.reset()
     total_loss = 0.0
-    correct = 0
     total = 0
 
     with torch.no_grad():
@@ -134,21 +135,21 @@ def validate(model, dataloader, criterion, device, scaler, is_ddp):
                 loss = criterion(outputs, labels)
 
             total_loss += loss.item() * inputs.size(0)
-            _, predicted = outputs.max(1)
             total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
+            metrics.update(outputs, labels)
+
+    metrics_res = metrics.compute()
 
     if is_ddp:
         t = torch.tensor(
-            [total_loss, correct, total], device=device, dtype=torch.float64
+            [total_loss, total], device=device, dtype=torch.float64
         )
         t = reduce_tensor(t)
-        avg_loss = (t[0] / t[2]).item()
-        accuracy = 100.0 * (t[1] / t[2]).item()
+        avg_loss = (t[0] / t[1]).item()
     else:
         avg_loss = total_loss / total
-        accuracy = 100.0 * correct / total
-    return avg_loss, accuracy
+        
+    return avg_loss, metrics_res
 
 
 def objective(trial, args, device, is_ddp):
@@ -218,13 +219,20 @@ def objective(trial, args, device, is_ddp):
         else None
     )
 
+    metrics = MetricCollection({
+        'acc': Accuracy(task="multiclass", num_classes=10),
+        'precision': Precision(task="multiclass", num_classes=10, average="macro"),
+        'recall': Recall(task="multiclass", num_classes=10, average="macro"),
+        'f1': F1Score(task="multiclass", num_classes=10, average="macro")
+    }).to(device)
+
     best_val_loss = float("inf")
 
     for epoch in range(args.epochs):
         if is_ddp and hasattr(train_loader.sampler, "set_epoch"):
             train_loader.sampler.set_epoch(epoch)
 
-        train_loss, train_acc = train_one_epoch(
+        train_loss, train_metrics = train_one_epoch(
             model,
             train_loader,
             criterion,
@@ -232,10 +240,11 @@ def objective(trial, args, device, is_ddp):
             device,
             scaler,
             args.grad_clip,
+            metrics,
             is_ddp,
         )
-        val_loss, val_acc = validate(
-            model, val_loader, criterion, device, scaler, is_ddp
+        val_loss, val_metrics = validate(
+            model, val_loader, criterion, device, scaler, metrics, is_ddp
         )
 
         if is_main_process():
@@ -244,9 +253,15 @@ def objective(trial, args, device, is_ddp):
                 {
                     "epoch": epoch,
                     "train_loss": train_loss,
-                    "train_acc": train_acc,
+                    "train_acc": train_metrics['acc'].item() * 100.0,
+                    "train_precision": train_metrics['precision'].item() * 100.0,
+                    "train_recall": train_metrics['recall'].item() * 100.0,
+                    "train_f1": train_metrics['f1'].item() * 100.0,
                     "val_loss": val_loss,
-                    "val_acc": val_acc,
+                    "val_acc": val_metrics['acc'].item() * 100.0,
+                    "val_precision": val_metrics['precision'].item() * 100.0,
+                    "val_recall": val_metrics['recall'].item() * 100.0,
+                    "val_f1": val_metrics['f1'].item() * 100.0,
                 }
             )
 
@@ -265,7 +280,7 @@ def objective(trial, args, device, is_ddp):
                 data = {
                     "epoch": epoch,
                     "val_loss": val_loss,
-                    "val_acc": val_acc,
+                    "val_acc": val_metrics['acc'].item() * 100.0,
                     "trial_params": trial.params,
                 }
                 json_path = "tuning_artifacts/best_trial.json"
