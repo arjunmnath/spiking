@@ -38,10 +38,10 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def build_model(trial):
+def build_model(trial, args):
     """Instantiate model with tunable hyperparameters."""
     dropout_rate = trial.suggest_float("dropout", 0.1, 0.5)
-    model = ImageClassifier(num_classes=10, dropout_rate=dropout_rate)
+    model = ImageClassifier(num_classes=10, dropout_rate=dropout_rate, snn_model=args.snn_model)
     return model
 
 
@@ -155,10 +155,11 @@ def objective(trial, args, device, is_ddp):
         trial = TorchDistributedTrial(trial)
 
     if is_main_process():
+        run_name = args.run_name if args.run_name else get_run_id()
         wandb.init(
             project="cifar10",
             group="optuna-search",
-            name=get_run_id(),
+            name=run_name,
             config=trial.params,
             reinit=True,
             settings=wandb.Settings(start_method="thread"),
@@ -169,9 +170,38 @@ def objective(trial, args, device, is_ddp):
     batch_size = trial.suggest_categorical("batch_size", [32, 64, 128, 256])
 
     dataset = CIFAR10(batch_size=batch_size, num_workers=args.num_workers)
-    train_loader, test_loader = dataset.get_dataloaders()
+    full_train_loader, _ = dataset.get_dataloaders()
+    full_train_dataset = full_train_loader.dataset
 
-    model = build_model(trial).to(device)
+    val_size = int(len(full_train_dataset) * args.val_split_ratio)
+    train_size = len(full_train_dataset) - val_size
+    
+    train_subset, val_subset = torch.utils.data.random_split(
+        full_train_dataset, [train_size, val_size],
+        generator=torch.Generator().manual_seed(42 + trial.number)
+    )
+
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_subset) if is_ddp else None
+    train_loader = DataLoader(
+        train_subset,
+        batch_size=batch_size,
+        shuffle=(train_sampler is None),
+        num_workers=args.num_workers,
+        sampler=train_sampler,
+        pin_memory=True
+    )
+
+    val_sampler = torch.utils.data.distributed.DistributedSampler(val_subset, shuffle=False) if is_ddp else None
+    val_loader = DataLoader(
+        val_subset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        sampler=val_sampler,
+        pin_memory=True
+    )
+
+    model = build_model(trial, args).to(device)
     if is_ddp:
         model = DDP(model, device_ids=[device.index] if device.type == "cuda" else None)
     if is_main_process():
@@ -202,7 +232,7 @@ def objective(trial, args, device, is_ddp):
             is_ddp,
         )
         val_loss, val_acc = validate(
-            model, test_loader, criterion, device, scaler, is_ddp
+            model, val_loader, criterion, device, scaler, is_ddp
         )
 
         if is_main_process():
@@ -259,6 +289,25 @@ def main():
         "--trials", type=int, default=20, help="Number of optuna trials"
     )
     parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument(
+        "--val_split_ratio",
+        type=float,
+        default=0.2,
+        help="Ratio of the train dataset to use for validation",
+    )
+    parser.add_argument(
+        "--run_name",
+        type=str,
+        default=None,
+        help="Optional run name for wandb. If not provided, a random ID will be generated.",
+    )
+    parser.add_argument(
+        "--snn_model",
+        type=str,
+        choices=["lif", "izh", "hh"],
+        default="lif",
+        help="Target SNN model to use (lif, izh, hh)",
+    )
     parser.add_argument(
         "--device",
         type=str,
