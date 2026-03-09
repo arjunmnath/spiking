@@ -157,7 +157,8 @@ def objective(trial, args, device, is_ddp):
         trial = TorchDistributedTrial(trial)
 
     if is_main_process():
-        run_name = args.run_name if args.run_name else get_run_id()
+        base_run_name = args.run_name if args.run_name else get_run_id()
+        run_name = f"{base_run_name}_trial_{trial.number}"
         wandb.init(
             project="cifar10",
             group="optuna-search",
