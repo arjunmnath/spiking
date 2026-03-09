@@ -1,7 +1,7 @@
 import torchvision
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-from training.utils.ddp import is_initialized
+from training.utils.ddp import is_initialized, get_rank, barrier
 from training.data.transforms import get_transforms
 
 class CIFAR10:
@@ -12,6 +12,13 @@ class CIFAR10:
         self.transform_train, self.transform_test = get_transforms()
 
     def get_dataloaders(self):
+        if is_initialized() and get_rank() == 0:
+            torchvision.datasets.CIFAR10(root=self.data_dir, train=True, download=True)
+            torchvision.datasets.CIFAR10(root=self.data_dir, train=False, download=True)
+            
+        if is_initialized():
+            barrier()
+
         trainset = torchvision.datasets.CIFAR10(
             root=self.data_dir, train=True, download=True, transform=self.transform_train
         )

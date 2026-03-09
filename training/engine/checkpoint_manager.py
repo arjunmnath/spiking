@@ -7,7 +7,6 @@ import re
 
 from pprint import pprint
 import torch
-import boto3
 import tempfile
 import tarfile
 from filelock import FileLock
@@ -32,6 +31,7 @@ class CheckpointManager:
         self.checkpoints_dir = get_base_dir() / "checkpoints"
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
         self.bucket_name = bucket_name
+        import boto3
         self.s3 = boto3.client("s3")
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._created_checkpoint = None

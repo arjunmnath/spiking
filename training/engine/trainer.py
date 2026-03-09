@@ -87,6 +87,7 @@ class Trainer:
 
         with torch.set_grad_enabled(is_train):
             for batch_idx, (inputs, labels) in enumerate(dataloader):
+                self.model.apply(lambda m: getattr(m, 'reset', lambda: None)())
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
 
                 if is_train:

@@ -73,6 +73,7 @@ def train_one_epoch(
     total = 0
 
     for inputs, labels in dataloader:
+        model.apply(lambda m: getattr(m, 'reset', lambda: None)())
         inputs, labels = inputs.to(device), labels.to(device)
 
         optimizer.zero_grad()
@@ -121,6 +122,7 @@ def validate(model, dataloader, criterion, device, scaler, is_ddp):
 
     with torch.no_grad():
         for inputs, labels in dataloader:
+            model.apply(lambda m: getattr(m, 'reset', lambda: None)())
             inputs, labels = inputs.to(device), labels.to(device)
 
             if scaler is not None:
