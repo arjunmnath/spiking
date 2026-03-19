@@ -322,9 +322,9 @@ def main():
     parser.add_argument(
         "--snn_model",
         type=str,
-        choices=["lif", "izh", "hh"],
-        default="lif",
-        help="Target SNN model to use (lif, izh, hh)",
+        choices=["lif", "izh", "hh", ""],
+        default="",
+        help="Target SNN model to use (lif, izh, hh). Leave empty to not use an snn node.",
     )
     parser.add_argument(
         "--device",

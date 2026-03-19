@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--snn_model", type=str, choices=["lif", "izh", "hh"], default="lif")
+    parser.add_argument("--snn_model", type=str, choices=["lif", "izh", "hh", ""], default="")
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--optimizer", type=str, choices=["Adam", "AdamW"], default="AdamW")
     parser.add_argument("--lr", type=float, default=1e-3)

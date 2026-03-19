@@ -6,6 +6,8 @@ from .izh import IzhikevichNode
 from .hh import HHNode
 
 def get_snn_node(snn_model):
+    if not snn_model:
+        return nn.Identity()
     if snn_model == "lif":
         return LIFNode()
     elif snn_model == "izh":
