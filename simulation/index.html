@@ -1,0 +1,2014 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LGN-OEF Simulation</title>
+  <style>
+    :root {
+      --bg0: #04070c;
+      --bg1: #090e16;
+      --bg2: #0f1520;
+      --bg3: #161d2a;
+      --bg4: #1c2535;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hi: rgba(255, 255, 255, 0.13);
+      --t1: #cdd5e0;
+      --t2: #5c6880;
+      --t3: #39445a;
+      --m: #F59E0B;
+      --m2: rgba(245, 158, 11, 0.15);
+      --m3: #7c4f08;
+      --p: #60A5FA;
+      --p2: rgba(96, 165, 250, 0.12);
+      --p3: #1e4a8c;
+      --k: #6EE7B7;
+      --k2: rgba(110, 231, 183, 0.10);
+      --k3: #0d4a35;
+      --acc: #7C3AED;
+      --acc2: rgba(124, 58, 237, 0.18);
+      --ok: #22c55e;
+      --ok2: rgba(34, 197, 94, 0.15);
+      --err: #ef4444;
+      --err2: rgba(239, 68, 68, 0.12);
+      --warn: #f59e0b;
+      --warn2: rgba(245, 158, 11, 0.12);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background: var(--bg0);
+      color: var(--t1);
+      font-family: var(--mono);
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ── */
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 38px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg1);
+      flex-shrink: 0;
+      gap: 12px;
+    }
+
+    .hdr-left {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .hdr-left h1 {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--t1);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .hdr-ver {
+      font-size: 9px;
+      color: var(--t2);
+      letter-spacing: .05em;
+    }
+
+    .hdr-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cfg-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    .cfg-badge:hover {
+      opacity: .8;
+    }
+
+    .cfg-badge.default {
+      background: var(--bg4);
+      color: var(--t2);
+      border: 1px solid var(--border-hi);
+    }
+
+    .cfg-badge.loaded {
+      background: var(--ok2);
+      color: var(--ok);
+      border: 1px solid rgba(34, 197, 94, .3);
+    }
+
+    .cfg-badge.error {
+      background: var(--err2);
+      color: var(--err);
+      border: 1px solid rgba(239, 68, 68, .3);
+    }
+
+    .sim-t {
+      font-size: 10px;
+      color: var(--acc);
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ok);
+      flex-shrink: 0;
+    }
+
+    .status-dot.idle {
+      background: var(--t3);
+    }
+
+    .status-dot.run {
+      background: var(--ok);
+      animation: blink 1.4s ease-in-out infinite;
+    }
+
+    .status-dot.pause {
+      background: var(--warn);
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .35
+      }
+    }
+
+    /* ── MAIN ── */
+    .main {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── LEFT PANEL ── */
+    .lp {
+      background: var(--bg1);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .lp::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .lp::-webkit-scrollbar-thumb {
+      background: var(--bg4);
+      border-radius: 2px;
+    }
+
+    .sec-hdr {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--t2);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 4px;
+      margin-bottom: 5px;
+    }
+
+    .sec {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .lbl {
+      font-size: 9.5px;
+      color: var(--t2);
+      flex: 1;
+    }
+
+    .val {
+      font-size: 9.5px;
+      color: var(--t1);
+      min-width: 36px;
+      text-align: right;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 2.5px;
+      background: var(--bg4);
+      border-radius: 2px;
+      outline: none;
+      flex: 2;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--acc);
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(124, 58, 237, .5);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      flex: 1;
+      min-width: 0;
+      padding: 4px 5px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--t2);
+      font-family: var(--mono);
+      font-size: 8.5px;
+      border-radius: 3px;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: .04em;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      border-color: var(--border-hi);
+      color: var(--t1);
+    }
+
+    .btn.on {
+      background: var(--acc);
+      border-color: var(--acc);
+      color: #fff;
+    }
+
+    .btn.run {
+      background: #14532d;
+      border-color: #22c55e;
+      color: #86efac;
+      font-weight: 700;
+    }
+
+    .btn.run.stop {
+      background: #450a0a;
+      border-color: var(--err);
+      color: #fca5a5;
+    }
+
+    .btn.cfg-open {
+      background: var(--acc2);
+      border-color: rgba(124, 58, 237, .4);
+      color: #c4b5fd;
+      font-weight: 700;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+    }
+
+    .mc {
+      background: var(--bg0);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 7px;
+    }
+
+    .mc-v {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--t1);
+    }
+
+    .mc-l {
+      font-size: 8.5px;
+      color: var(--t2);
+      margin-top: 2px;
+    }
+
+    .mc-v.m {
+      color: var(--m);
+    }
+
+    .mc-v.p {
+      color: var(--p);
+    }
+
+    .mc-v.k {
+      color: var(--k);
+    }
+
+    .pop-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .pi-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0;
+    }
+
+    .pi-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .pi-name {
+      font-size: 9.5px;
+      color: var(--t1);
+    }
+
+    .pi-detail {
+      font-size: 8.5px;
+      color: var(--t2);
+      margin-left: auto;
+    }
+
+    .pi-model {
+      font-size: 8px;
+      padding: 1px 4px;
+      border-radius: 2px;
+      margin-left: 4px;
+    }
+
+    .pm-lif {
+      background: rgba(245, 158, 11, .15);
+      color: var(--m);
+    }
+
+    .pm-izh {
+      background: rgba(96, 165, 250, .12);
+      color: var(--p);
+    }
+
+    .pm-izh_bursting {
+      background: rgba(110, 231, 183, .1);
+      color: var(--k);
+    }
+
+    .wt-status {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .wt-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 9px;
+      color: var(--t2);
+    }
+
+    .wt-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .wt-dot.gen {
+      background: var(--warn);
+    }
+
+    .wt-dot.loaded {
+      background: var(--ok);
+    }
+
+    .wt-name {
+      flex: 1;
+    }
+
+    .wt-src {
+      color: var(--t3);
+      font-size: 8px;
+    }
+
+    /* ── RIGHT AREA ── */
+    .ra {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .top-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      height: 170px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .tb-anat {
+      width: 130px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      background: var(--bg1);
+      position: relative;
+    }
+
+    .tb-stim {
+      width: 190px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      background: var(--bg1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tb-rf {
+      flex: 1;
+      background: var(--bg1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tb-label {
+      font-size: 8px;
+      color: var(--t2);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      padding: 6px 8px 3px;
+      flex-shrink: 0;
+    }
+
+    /* ── RASTER ── */
+    .raster-wrap {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    canvas.raster {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    .p-lbl {
+      position: absolute;
+      top: 5px;
+      left: 8px;
+      font-size: 8px;
+      color: var(--t2);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .p-sel {
+      position: absolute;
+      top: 5px;
+      right: 8px;
+      font-size: 8.5px;
+      color: var(--acc);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* ── TRACE ── */
+    .trace-wrap {
+      height: 88px;
+      border-top: 1px solid var(--border);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    canvas.trace {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+
+    /* ── MODAL ── */
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .7);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-bg.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg1);
+      border: 1px solid var(--border-hi);
+      border-radius: 8px;
+      width: 680px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .modal-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--t1);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .modal-ver {
+      font-size: 9px;
+      color: var(--acc);
+      margin-left: 8px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--t2);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    .modal-close:hover {
+      color: var(--t1);
+      background: var(--bg3);
+    }
+
+    .modal-body {
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    .modal-body::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb {
+      background: var(--bg4);
+      border-radius: 2px;
+    }
+
+    .modal-sec-hdr {
+      font-size: 8.5px;
+      font-weight: 700;
+      color: var(--t2);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-bottom: 6px;
+    }
+
+    .json-editor {
+      width: 100%;
+      height: 220px;
+      background: var(--bg0);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      color: var(--t1);
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 10px;
+      resize: vertical;
+      outline: none;
+      line-height: 1.6;
+    }
+
+    .json-editor:focus {
+      border-color: rgba(124, 58, 237, .5);
+    }
+
+    .file-drop {
+      border: 1px dashed var(--border-hi);
+      border-radius: 4px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .15s;
+      position: relative;
+    }
+
+    .file-drop:hover,
+    .file-drop.over {
+      border-color: rgba(124, 58, 237, .5);
+      background: var(--acc2);
+    }
+
+    .file-drop input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .file-drop-text {
+      font-size: 9.5px;
+      color: var(--t2);
+    }
+
+    .file-drop-text span {
+      color: var(--acc);
+    }
+
+    .wt-upload-table {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .wt-upload-row {
+      display: grid;
+      grid-template-columns: 32px 1fr 90px 80px 60px;
+      gap: 8px;
+      align-items: center;
+      padding: 5px 8px;
+      background: var(--bg0);
+      border-radius: 3px;
+      border: 1px solid var(--border);
+    }
+
+    .wt-pop-badge {
+      font-size: 8px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 2px;
+      text-align: center;
+    }
+
+    .wt-info {
+      font-size: 9px;
+      color: var(--t2);
+    }
+
+    .wt-shape {
+      font-size: 8px;
+      color: var(--t3);
+    }
+
+    .wt-upload-btn {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .wt-upload-btn input[type=file] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      font-size: 0;
+    }
+
+    .wt-status-badge {
+      font-size: 8px;
+      padding: 1px 5px;
+      border-radius: 2px;
+      text-align: center;
+    }
+
+    .wt-status-badge.gen {
+      background: var(--warn2);
+      color: var(--warn);
+    }
+
+    .wt-status-badge.loaded {
+      background: var(--ok2);
+      color: var(--ok);
+    }
+
+    .val-section {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .val-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 9.5px;
+    }
+
+    .val-icon {
+      font-size: 10px;
+      width: 14px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .val-msg {
+      color: var(--t1);
+    }
+
+    .val-row.ok .val-msg {
+      color: var(--ok);
+    }
+
+    .val-row.err .val-msg {
+      color: var(--err);
+    }
+
+    .val-row.warn .val-msg {
+      color: var(--warn);
+    }
+
+    .modal-footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .btn-modal {
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 9.5px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: .04em;
+      transition: all .12s;
+    }
+
+    .btn-cancel {
+      background: var(--bg3);
+      border: 1px solid var(--border-hi);
+      color: var(--t2);
+    }
+
+    .btn-cancel:hover {
+      color: var(--t1);
+    }
+
+    .btn-validate {
+      background: var(--bg3);
+      border: 1px solid rgba(245, 158, 11, .4);
+      color: var(--warn);
+    }
+
+    .btn-validate:hover {
+      background: var(--warn2);
+    }
+
+    .btn-apply {
+      background: var(--acc);
+      border: 1px solid var(--acc);
+      color: #fff;
+    }
+
+    .btn-apply:hover {
+      opacity: .9;
+    }
+
+    .btn-apply:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    /* ── STIM CANVAS ── */
+    .stim-inner {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 0 8px 6px;
+    }
+
+    canvas.stim-px {
+      image-rendering: pixelated;
+      border: 1px solid var(--border-hi);
+      border-radius: 2px;
+    }
+
+    canvas.enc-px {
+      image-rendering: pixelated;
+      border: 1px solid rgba(124, 58, 237, .3);
+      border-radius: 2px;
+    }
+
+    /* ── RF PANEL ── */
+    .rf-inner {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px 6px;
+      overflow: hidden;
+    }
+
+    .rf-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .rf-lbl {
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 700;
+    }
+
+    canvas.rf-px {
+      image-rendering: pixelated;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <h1>LGN-OEF</h1>
+      <span class="hdr-ver">Lateral Geniculate Nucleus · Open Encoding Format</span>
+    </div>
+    <div class="hdr-right">
+      <div class="status-dot idle" id="sdot"></div>
+      <span class="sim-t" id="simt">t = 0.000 s</span>
+      <div class="cfg-badge default" id="cfg-badge" onclick="openModal()">DEFAULT CONFIG</div>
+    </div>
+  </div>
+
+  <!-- CONFIG MODAL -->
+  <div class="modal-bg" id="modal-bg">
+    <div class="modal">
+      <div class="modal-hdr">
+        <div><span class="modal-title">Config Loader</span><span class="modal-ver">LGN-OEF-1.0</span></div>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <!-- JSON Editor -->
+        <div>
+          <div class="modal-sec-hdr">Configuration JSON</div>
+          <textarea class="json-editor" id="json-editor" spellcheck="false"></textarea>
+          <div class="file-drop" id="json-drop" style="margin-top:6px;">
+            <input type="file" accept=".json" id="json-file-input" onchange="handleJsonFile(this)">
+            <div class="file-drop-text">Drop <span>.json</span> here or click to browse</div>
+          </div>
+        </div>
+        <!-- Weight Uploads -->
+        <div>
+          <div class="modal-sec-hdr">Weight Files <span
+              style="color:var(--t3);font-size:8px;font-weight:400">(auto-generated from kernel if not provided)</span>
+          </div>
+          <div class="wt-upload-table" id="wt-upload-table">
+            <!-- populated by JS -->
+          </div>
+        </div>
+        <!-- Validation -->
+        <div>
+          <div class="modal-sec-hdr">Validation</div>
+          <div class="val-section" id="val-section">
+            <div class="val-row warn"><span class="val-icon">⊙</span><span class="val-msg">Click Validate to check
+                configuration</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-modal btn-validate" onclick="runValidate()">Validate</button>
+        <button class="btn-modal btn-apply" id="btn-apply" onclick="applyConfig()">Apply Config</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- LEFT PANEL -->
+    <div class="lp">
+      <div class="sec">
+        <div class="sec-hdr">Simulation</div>
+        <div class="btn-row">
+          <button class="btn run" id="run-btn" onclick="toggleRun()">▶ RUN</button>
+          <button class="btn" onclick="resetSim()">↺ RESET</button>
+        </div>
+        <div class="row">
+          <span class="lbl">Speed</span>
+          <input type="range" min="1" max="30" value="10" id="sl-speed"
+            oninput="stepsPerFrame=+this.value;document.getElementById('val-speed').textContent=this.value+'×'">
+          <span class="val" id="val-speed">10×</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-hdr">Configuration</div>
+        <button class="btn cfg-open" onclick="openModal()">⊞ LOAD CONFIG / WEIGHTS</button>
+        <div class="wt-status" id="wt-status-lp"></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-hdr">Stimulus</div>
+        <div class="btn-row">
+          <button class="btn on" id="sb-grating" onclick="setStim('grating')">GRATING</button>
+          <button class="btn" id="sb-flash" onclick="setStim('flash')">FLASH</button>
+          <button class="btn" id="sb-bar" onclick="setStim('bar')">BAR</button>
+          <button class="btn" id="sb-noise" onclick="setStim('noise')">NOISE</button>
+        </div>
+        <div class="row">
+          <span class="lbl">Contrast</span>
+          <input type="range" min="0" max="100" value="70" id="sl-c"
+            oninput="params.contrast=this.value/100;document.getElementById('v-c').textContent=this.value+'%'">
+          <span class="val" id="v-c">70%</span>
+        </div>
+        <div class="row">
+          <span class="lbl">Temp. freq.</span>
+          <input type="range" min="1" max="20" value="4" id="sl-tf"
+            oninput="params.tf=+this.value;document.getElementById('v-tf').textContent=this.value+' Hz'">
+          <span class="val" id="v-tf">4 Hz</span>
+        </div>
+        <div class="row">
+          <span class="lbl">Spat. freq.</span>
+          <input type="range" min="1" max="16" value="4" id="sl-sf"
+            oninput="params.sf=+this.value;document.getElementById('v-sf').textContent=this.value+' cpd'">
+          <span class="val" id="v-sf">4 cpd</span>
+        </div>
+        <div class="row">
+          <span class="lbl">Encoding</span>
+          <div class="btn-row" style="flex:2">
+            <button class="btn on" id="enc-latency" onclick="setEncoding('latency')">LATENCY</button>
+            <button class="btn" id="enc-rate" onclick="setEncoding('rate')">RATE</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-hdr">Visibility</div>
+        <div class="btn-row">
+          <button class="btn on" id="vis-M" onclick="toggleVis('M')">M CELLS</button>
+          <button class="btn on" id="vis-P" onclick="toggleVis('P')">P CELLS</button>
+          <button class="btn on" id="vis-K" onclick="toggleVis('K')">K CELLS</button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-hdr">Populations</div>
+        <div class="pop-info" id="pop-info"></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-hdr">Firing Rates (Hz)</div>
+        <div class="metric-grid">
+          <div class="mc">
+            <div class="mc-v m" id="r-m">0.0</div>
+            <div class="mc-l">M mean</div>
+          </div>
+          <div class="mc">
+            <div class="mc-v p" id="r-p">0.0</div>
+            <div class="mc-l">P mean</div>
+          </div>
+          <div class="mc">
+            <div class="mc-v k" id="r-k">0.0</div>
+            <div class="mc-l">K mean</div>
+          </div>
+          <div class="mc">
+            <div class="mc-v" id="r-tot">0</div>
+            <div class="mc-l">total spikes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT AREA -->
+    <div class="ra">
+      <!-- TOP BAR -->
+      <div class="top-bar">
+        <!-- Anatomy -->
+        <div class="tb-anat">
+          <div class="tb-label">LGN Layers</div>
+          <canvas id="anat-c" width="130" height="145"></canvas>
+        </div>
+        <!-- Stimulus -->
+        <div class="tb-stim">
+          <div class="tb-label">Retinal Input (16×16)</div>
+          <div class="stim-inner">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+              <canvas class="stim-px" id="stim-c" width="64" height="64" title="Stimulus"></canvas>
+              <span style="font-size:7.5px;color:var(--t2)">stimulus</span>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
+              <canvas class="enc-px" id="enc-c" width="64" height="64" title="Latency encoding"></canvas>
+              <span style="font-size:7.5px;color:#a78bfa">encoding</span>
+            </div>
+          </div>
+        </div>
+        <!-- RF Viewer -->
+        <div class="tb-rf">
+          <div class="tb-label">Receptive Field Kernels (avg)</div>
+          <div class="rf-inner" id="rf-inner"></div>
+        </div>
+      </div>
+
+      <!-- RASTER -->
+      <div class="raster-wrap" id="raster-wrap">
+        <span class="p-lbl">SPIKE RASTER</span>
+        <span class="p-sel" id="sel-lbl">click neuron to trace</span>
+        <canvas class="raster" id="raster-c"></canvas>
+      </div>
+
+      <!-- TRACE -->
+      <div class="trace-wrap">
+        <span class="p-lbl">MEMBRANE POTENTIAL</span>
+        <canvas class="trace" id="trace-c"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════
+    // 1. CONSTANTS & STATE
+    // ═══════════════════════════════════════════════════════
+    const dt_ms = 0.5;           // timestep in milliseconds
+    const dt = dt_ms / 1000;  // in seconds
+    const GRID = 16;            // retinal input grid
+    const N_PRE = GRID * GRID;   // 256 input pixels
+    const V_REST = -70, V_REST_IZH = -65;
+    const RASTER_WIN = 3.0, TRACE_WIN = 0.4;
+
+    let simTime = 0, running = false, animId = null, stepsPerFrame = 10;
+    let cells = [], weightMatrices = {};
+    let selectedCell = null;
+    let encoding = 'latency';
+    let stimType = 'grating';
+    let params = { contrast: 0.7, tf: 4, sf: 4 };
+    let vis = { M: true, P: true, K: true };
+    let configValidated = false;
+    let pendingWeightBuffers = {}; // { popId: ArrayBuffer }
+
+    // ═══════════════════════════════════════════════════════
+    // 2. DEFAULT CONFIG
+    // ═══════════════════════════════════════════════════════
+    const DEFAULT_CONFIG = {
+      version: "LGN-OEF-1.0",
+      meta: { resolution: [16, 16], time_step_ms: 1 },
+      input: { type: "retina", encoding: { scheme: "latency", t_min: 0, t_max: 100 }, shape: [16, 16] },
+      populations: [
+        { id: "M", type: "M", size: 64, neuron_model: { type: "lif", params: { tau_m: 10, v_thresh: -50, v_reset: -65 } } },
+        { id: "P", type: "P", size: 256, neuron_model: { type: "izh", params: { a: 0.02, b: 0.2, c: -65, d: 6 } } },
+        { id: "K", type: "K", size: 40, neuron_model: { type: "izh_bursting", params: { a: 0.02, b: 0.2, c: -55, d: 4 } } }
+      ],
+      connections: [
+        { from: "input", to: "M", mapping: "convolutional", kernel: "center_surround", weight_file: "weights/M.npy" },
+        { from: "input", to: "P", mapping: "convolutional", kernel: "center_surround", weight_file: "weights/P.npy" },
+        { from: "input", to: "K", mapping: "sparse", sparsity: 0.1, weight_file: "weights/K.npy" }
+      ]
+    };
+
+    let currentConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+
+    // ═══════════════════════════════════════════════════════
+    // 3. CONFIG VALIDATION
+    // ═══════════════════════════════════════════════════════
+    const VALID_POP_TYPES = ['M', 'P', 'K'];
+    const VALID_MODEL_TYPES = ['lif', 'izh', 'izh_bursting'];
+    const VALID_MAPPINGS = ['convolutional', 'sparse'];
+    const VALID_KERNELS = ['center_surround', 'none'];
+    const VALID_ENCODINGS = ['latency', 'rate'];
+    const VALID_INPUT_TYPES = ['retina'];
+
+    function validateConfig(cfg) {
+      const errors = [], warns = [], oks = [];
+      if (!cfg || typeof cfg !== 'object') { errors.push('Config is not a valid JSON object'); return { valid: false, errors, warns, oks }; }
+      cfg.version === 'LGN-OEF-1.0' ? oks.push(`version: ${cfg.version}`) : errors.push(`version must be "LGN-OEF-1.0", got "${cfg.version}"`);
+      if (!cfg.meta || !Array.isArray(cfg.meta.resolution) || cfg.meta.resolution.length !== 2)
+        errors.push('meta.resolution must be [W, H] array');
+      else oks.push(`resolution: ${cfg.meta.resolution[0]}×${cfg.meta.resolution[1]}`);
+      if (!cfg.input) { errors.push('Missing input section'); }
+      else {
+        if (!VALID_INPUT_TYPES.includes(cfg.input.type)) errors.push(`input.type must be one of [${VALID_INPUT_TYPES}]`);
+        if (!cfg.input.encoding || !VALID_ENCODINGS.includes(cfg.input.encoding.scheme))
+          errors.push(`input.encoding.scheme must be one of [${VALID_ENCODINGS}]`);
+        else {
+          if (cfg.input.encoding.scheme === 'latency') {
+            if (cfg.input.encoding.t_min == null || cfg.input.encoding.t_max == null)
+              errors.push('latency encoding requires t_min and t_max');
+            else oks.push(`encoding: latency [${cfg.input.encoding.t_min}–${cfg.input.encoding.t_max} ms]`);
+          } else {
+            oks.push(`encoding: rate`);
+          }
+        }
+        if (!Array.isArray(cfg.input.shape) || cfg.input.shape.length !== 2)
+          errors.push('input.shape must be [H, W] array');
+        else oks.push(`input shape: ${cfg.input.shape[0]}×${cfg.input.shape[1]}`);
+      }
+      if (!Array.isArray(cfg.populations) || cfg.populations.length !== 3) {
+        errors.push('populations must be an array of exactly 3 items (M, P, K)');
+      } else {
+        const types = cfg.populations.map(p => p.type);
+        const hasAll = ['M', 'P', 'K'].every(t => types.includes(t));
+        if (!hasAll) errors.push('populations must include exactly one of each type: M, P, K');
+        cfg.populations.forEach((pop, i) => {
+          if (!pop.id) errors.push(`population[${i}] missing id`);
+          if (!VALID_POP_TYPES.includes(pop.type)) errors.push(`population "${pop.id}" type must be one of [${VALID_POP_TYPES}]`);
+          if (!Number.isInteger(pop.size) || pop.size < 1) errors.push(`population "${pop.id}" size must be positive integer`);
+          if (!pop.neuron_model || !VALID_MODEL_TYPES.includes(pop.neuron_model.type))
+            errors.push(`population "${pop.id}" neuron_model.type must be one of [${VALID_MODEL_TYPES}]`);
+          else {
+            const nm = pop.neuron_model;
+            if (nm.type === 'lif') {
+              if (nm.params?.tau_m == null || nm.params?.v_thresh == null || nm.params?.v_reset == null)
+                errors.push(`population "${pop.id}" lif requires tau_m, v_thresh, v_reset`);
+              else oks.push(`${pop.id}(${pop.size}): lif τ=${nm.params.tau_m}ms Vth=${nm.params.v_thresh}mV`);
+            } else {
+              if (nm.params?.a == null || nm.params?.b == null || nm.params?.c == null || nm.params?.d == null)
+                errors.push(`population "${pop.id}" izh requires a, b, c, d`);
+              else oks.push(`${pop.id}(${pop.size}): ${nm.type} c=${nm.params.c}mV d=${nm.params.d}`);
+            }
+          }
+        });
+      }
+      if (!Array.isArray(cfg.connections) || cfg.connections.length === 0) {
+        errors.push('connections must be a non-empty array');
+      } else {
+        cfg.connections.forEach((conn, i) => {
+          if (conn.from !== 'input') errors.push(`connection[${i}].from must be "input" (no recurrent)`);
+          if (!VALID_MAPPINGS.includes(conn.mapping)) errors.push(`connection[${i}].mapping must be one of [${VALID_MAPPINGS}]`);
+          if (conn.mapping === 'convolutional' && !VALID_KERNELS.includes(conn.kernel))
+            errors.push(`connection[${i}] convolutional requires kernel in [${VALID_KERNELS}]`);
+          if (conn.mapping === 'sparse' && conn.sparsity == null)
+            errors.push(`connection[${i}] sparse requires sparsity`);
+          if (!conn.weight_file) warns.push(`connection[${i}] no weight_file — will auto-generate`);
+          else oks.push(`connection input→${conn.to} [${conn.mapping}]`);
+        });
+      }
+      return { valid: errors.length === 0, errors, warns, oks };
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 4. NPY PARSING
+    // ═══════════════════════════════════════════════════════
+    function parseNPY(buffer) {
+      const u8 = new Uint8Array(buffer);
+      const magic = String.fromCharCode(u8[1], u8[2], u8[3], u8[4], u8[5]);
+      if (magic !== 'NUMPY') throw new Error('Not a .npy file (bad magic)');
+      const major = u8[6];
+      let hdrLen, hdrOffset;
+      if (major === 1) {
+        hdrLen = u8[8] | (u8[9] << 8);
+        hdrOffset = 10;
+      } else if (major === 2) {
+        hdrLen = u8[8] | (u8[9] << 8) | (u8[10] << 16) | (u8[11] << 24);
+        hdrOffset = 12;
+      } else { throw new Error(`Unsupported npy version ${major}`); }
+      const hdrBytes = new Uint8Array(buffer, hdrOffset, hdrLen);
+      const hdrStr = String.fromCharCode(...hdrBytes);
+      const descrM = hdrStr.match(/'descr'\s*:\s*'([^']+)'/);
+      const shapeM = hdrStr.match(/'shape'\s*:\s*\(([^)]+)\)/);
+      if (!descrM || !shapeM) throw new Error('Cannot parse npy header');
+      const descr = descrM[1];
+      const shape = shapeM[1].split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      const dataOffset = hdrOffset + hdrLen;
+      let data;
+      if (descr === '<f4' || descr === '|f4' || descr === '=f4') {
+        data = new Float32Array(buffer, dataOffset);
+      } else if (descr === '<f8' || descr === '|f8' || descr === '=f8') {
+        const f64 = new Float64Array(buffer, dataOffset);
+        data = new Float32Array(f64.length);
+        for (let i = 0; i < f64.length; i++) data[i] = f64[i];
+      } else if (descr === '<i4' || descr === '=i4') {
+        const i32 = new Int32Array(buffer, dataOffset);
+        data = new Float32Array(i32.length);
+        for (let i = 0; i < i32.length; i++) data[i] = i32[i];
+      } else throw new Error(`Unsupported dtype: ${descr}`);
+      return { data, shape };
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 5. WEIGHT GENERATION
+    // ═══════════════════════════════════════════════════════
+    function generateDoG(postN, preN, centerSigma, surroundSigma, onCenter = true) {
+      const W = new Float32Array(postN * preN);
+      const postGW = Math.round(Math.sqrt(postN));
+      const postGH = Math.ceil(postN / postGW);
+      const sign = onCenter ? 1 : -1;
+      for (let i = 0; i < postN; i++) {
+        const pi = i % postGW, pj = Math.floor(i / postGW);
+        const cx = (pi + 0.5) / postGW * GRID;
+        const cy = (pj + 0.5) / postGH * GRID;
+        let rowSum = 0;
+        for (let j = 0; j < preN; j++) {
+          const qx = j % GRID, qy = Math.floor(j / GRID);
+          const dx = qx - cx, dy = qy - cy, d2 = dx * dx + dy * dy;
+          const cN = 1 / (2 * Math.PI * centerSigma * centerSigma), sN = 1 / (2 * Math.PI * surroundSigma * surroundSigma);
+          const w = sign * (cN * Math.exp(-d2 / (2 * centerSigma * centerSigma)) - 0.9 * sN * Math.exp(-d2 / (2 * surroundSigma * surroundSigma)));
+          W[i * preN + j] = w;
+          rowSum += Math.abs(w);
+        }
+        if (rowSum > 0) for (let j = 0; j < preN; j++) W[i * preN + j] /= rowSum;
+      }
+      return W;
+    }
+
+    function generateSparse(postN, preN, sparsity) {
+      const W = new Float32Array(postN * preN);
+      for (let i = 0; i < postN; i++) {
+        let rowSum = 0;
+        for (let j = 0; j < preN; j++) {
+          if (Math.random() < sparsity) {
+            const w = 0.2 + Math.random() * 0.8;
+            W[i * preN + j] = w;
+            rowSum += w;
+          }
+        }
+        if (rowSum > 0) for (let j = 0; j < preN; j++) W[i * preN + j] /= rowSum;
+      }
+      return W;
+    }
+
+    function getWeightForPop(conn, popDef, pendingBuf) {
+      const postN = popDef.size;
+      if (pendingBuf) {
+        try {
+          const npy = parseNPY(pendingBuf);
+          const expected = postN * N_PRE;
+          if (npy.data.length >= expected) {
+            console.log(`NPY loaded for ${popDef.id}: shape [${npy.shape.join('×')}]`);
+            return { W: npy.data.slice(0, expected), source: 'npy' };
+          }
+        } catch (e) { console.warn('NPY parse error:', e.message); }
+      }
+      // Auto-generate
+      let W;
+      if (conn.mapping === 'convolutional' && conn.kernel === 'center_surround') {
+        const cSig = popDef.type === 'M' ? 2.0 : 0.8;
+        const sSig = cSig * 2.1;
+        W = generateDoG(postN, N_PRE, cSig, sSig);
+      } else if (conn.mapping === 'sparse') {
+        W = generateSparse(postN, N_PRE, conn.sparsity ?? 0.1);
+      } else {
+        W = generateSparse(postN, N_PRE, 0.3);
+      }
+      return { W, source: 'generated' };
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 6. NEURON MODELS
+    // ═══════════════════════════════════════════════════════
+    function makeCell(popDef, idx, W_row) {
+      const nm = popDef.neuron_model;
+      const gW = Math.round(Math.sqrt(popDef.size));
+      const row = Math.floor(idx / gW), col = idx % gW;
+      const cell = {
+        id: `${popDef.id}${idx + 1}`, type: popDef.type,
+        modelType: nm.type, modelParams: { ...nm.params },
+        W: W_row,    // Float32Array of length N_PRE
+        popIdx: idx, row, col, gridW: gW,
+        spikes: [], vTrace: [],
+        lastSpike_s: -999,
+      };
+      // Initialize state
+      if (nm.type === 'lif') {
+        cell.V = (nm.params.v_reset ?? -65) + Math.random() * 5;
+        cell.refrac_ms = nm.type === 'M' ? 2 : 2.5;
+      } else {
+        // Izhikevich
+        cell.V = (nm.params.c ?? -65) + Math.random() * 5;
+        cell.u = nm.params.b * cell.V;
+      }
+      return cell;
+    }
+
+    function stepLIF(cell, I_input) {
+      const p = cell.modelParams;
+      const inRefrac = (simTime - cell.lastSpike_s) < (cell.refrac_ms ?? 2) / 1000;
+      if (inRefrac) { cell.V = p.v_reset; return false; }
+      const tau = p.tau_m; // ms
+      const dV = (-(cell.V - V_REST) / tau + I_input) * dt_ms;
+      cell.V += dV;
+      cell.V = Math.max(-90, Math.min(-35, cell.V));
+      if (cell.V >= p.v_thresh) { cell.V = p.v_reset; cell.lastSpike_s = simTime; return true; }
+      return false;
+    }
+
+    function stepIzh(cell, I_input) {
+      const p = cell.modelParams;
+      const { a, b, c, d } = p;
+      // Izhikevich equations (dt in ms)
+      const scale = cell.modelType === 'izh_bursting' ? 12 : 10;
+      const I = I_input * scale;
+      const dv = (0.04 * cell.V * cell.V + 5 * cell.V + 140 - cell.u + I) * dt_ms;
+      const du = a * (b * cell.V - cell.u) * dt_ms;
+      cell.V += dv;
+      cell.u += du;
+      cell.V = Math.max(-90, Math.min(35, cell.V));
+      if (cell.V >= 30) {
+        cell.V = c; cell.u += d;
+        cell.lastSpike_s = simTime;
+        return true;
+      }
+      return false;
+    }
+
+    function stepNeuron(cell, retinalVec) {
+      // Compute weighted input current from retinal vector
+      const W = cell.W;
+      let I = 0;
+      for (let j = 0; j < N_PRE; j++) I += W[j] * retinalVec[j];
+      I = Math.max(0, I) * 8; // rectify & scale
+      // Add membrane noise
+      I += (Math.random() - 0.5) * 0.08;
+      // Tonic drive
+      I += 0.05;
+      if (cell.modelType === 'lif') return stepLIF(cell, I);
+      else return stepIzh(cell, I);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 7. STIMULUS & RETINAL ENCODING
+    // ═══════════════════════════════════════════════════════
+    const retinalVec = new Float32Array(N_PRE);
+
+    function computeRetinalVec(t) {
+      const { contrast, tf, sf } = params;
+      for (let y = 0; y < GRID; y++) {
+        for (let x = 0; x < GRID; x++) {
+          let v = 0;
+          if (stimType === 'grating') {
+            const ph = (x / GRID) * sf * Math.PI * 2 - 2 * Math.PI * tf * t;
+            v = (Math.sin(ph) + 1) / 2;
+          } else if (stimType === 'flash') {
+            const period = 1 / tf;
+            v = ((t % period) / period) < 0.45 ? 1 : 0;
+          } else if (stimType === 'bar') {
+            const bx = ((t * tf * 0.25) % 1.0) * GRID;
+            v = Math.abs(x - bx) < 1.5 ? 1 : 0;
+          } else {
+            v = Math.random();
+          }
+          retinalVec[y * GRID + x] = v * contrast;
+        }
+      }
+
+      // Apply encoding
+      if (encoding === 'latency') {
+        const cfg = currentConfig.input.encoding;
+        const t_min = cfg.t_min ?? 0, t_max = cfg.t_max ?? 100;
+        const tInMs = (simTime * 1000) % (t_max + 20);
+        for (let j = 0; j < N_PRE; j++) {
+          const spikeTime = t_max - retinalVec[j] * (t_max - t_min);
+          // active if current time is within dt of spike time
+          retinalVec[j] = Math.abs(tInMs - spikeTime) < dt_ms * 2 ? retinalVec[j] : 0;
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 8. SIMULATION CORE
+    // ═══════════════════════════════════════════════════════
+    function buildFromConfig(cfg, weights) {
+      cells = [];
+      weightMatrices = {};
+      const connMap = {};
+      cfg.connections.forEach(c => { connMap[c.to] = c; });
+
+      cfg.populations.forEach(popDef => {
+        const conn = connMap[popDef.id] || {};
+        const { W, source } = getWeightForPop(conn, popDef, weights[popDef.id]);
+        weightMatrices[popDef.id] = { W, source, postN: popDef.size, conn };
+        for (let i = 0; i < popDef.size; i++) {
+          const W_row = W.slice(i * N_PRE, (i + 1) * N_PRE);
+          cells.push(makeCell(popDef, i, W_row));
+        }
+      });
+    }
+
+    function simStep() {
+      computeRetinalVec(simTime);
+      for (const cell of cells) {
+        const spiked = stepNeuron(cell, retinalVec);
+        if (spiked) {
+          cell.spikes.push(simTime);
+          const minT = simTime - RASTER_WIN - 1;
+          while (cell.spikes.length > 0 && cell.spikes[0] < minT) cell.spikes.shift();
+        }
+        if (cell === selectedCell) {
+          const tv = cell.modelType === 'lif' ? cell.V : cell.V;
+          cell.vTrace.push({ t: simTime, v: tv });
+          const maxTr = Math.ceil(TRACE_WIN / dt) + 100;
+          if (cell.vTrace.length > maxTr) cell.vTrace.shift();
+        }
+      }
+      simTime += dt;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 9. RENDERING
+    // ═══════════════════════════════════════════════════════
+
+    // ── Anatomy ──
+    function drawAnatomy() {
+      const C = document.getElementById('anat-c');
+      const ctx = C.getContext('2d');
+      ctx.clearRect(0, 0, C.width, C.height);
+      ctx.fillStyle = '#060b12';
+      ctx.fillRect(0, 0, C.width, C.height);
+      const W = C.width - 12, x0 = 6;
+      const pops = currentConfig.populations;
+      const COLORS = {
+        M: { fill: 'rgba(245,158,11,.2)', stroke: '#F59E0B', text: '#F59E0B' },
+        P: { fill: 'rgba(96,165,250,.15)', stroke: '#60A5FA', text: '#60A5FA' },
+        K: { fill: 'rgba(110,231,183,.1)', stroke: '#6EE7B7', text: '#6EE7B7' }
+      };
+      const LAYER_CONFIG = [
+        { label: 'K6', type: 'K', h: 8 },
+        { label: 'L6', type: 'P', h: 16 }, { label: 'K5', type: 'K', h: 8 },
+        { label: 'L5', type: 'P', h: 16 }, { label: 'K4', type: 'K', h: 8 },
+        { label: 'L4', type: 'P', h: 16 }, { label: 'K3', type: 'K', h: 8 },
+        { label: 'L3', type: 'P', h: 16 }, { label: 'K2', type: 'K', h: 8 },
+        { label: 'L2', type: 'M', h: 18 }, { label: 'K1', type: 'K', h: 8 },
+        { label: 'L1', type: 'M', h: 18 },
+      ];
+      let y = 4;
+      LAYER_CONFIG.forEach(layer => {
+        const col = COLORS[layer.type];
+        const pop = pops.find(p => p.type === layer.type);
+        // Scale height by population size relative to default
+        const defSize = { M: 64, P: 256, K: 40 }[layer.type];
+        const curSize = pop ? pop.size : defSize;
+        const scaledH = Math.max(6, layer.h * (0.6 + 0.4 * curSize / defSize));
+        ctx.fillStyle = col.fill;
+        ctx.strokeStyle = col.stroke;
+        ctx.lineWidth = layer.type === 'K' ? 0.4 : 0.7;
+        ctx.globalAlpha = layer.type === 'K' ? 0.6 : 1;
+        ctx.beginPath(); ctx.roundRect(x0, y, W, scaledH, 2); ctx.fill(); ctx.stroke();
+        ctx.globalAlpha = 1;
+        if (layer.type !== 'K') {
+          ctx.fillStyle = col.text;
+          ctx.font = '7.5px JetBrains Mono, monospace';
+          ctx.fillText(layer.label, x0 + 3, y + scaledH * 0.62);
+          // Activity dots
+          const typeCells = cells.filter(c => c.type === layer.type);
+          const recentRate = typeCells.filter(c => c.lastSpike_s > simTime - 0.05 && c.lastSpike_s > 0).length / Math.max(1, typeCells.length);
+          if (recentRate > 0) {
+            ctx.fillStyle = col.stroke;
+            ctx.globalAlpha = Math.min(1, recentRate * 3);
+            ctx.beginPath(); ctx.arc(W - 4, y + scaledH / 2, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+        }
+        y += scaledH + 2;
+      });
+    }
+
+    // ── Stimulus Preview ──
+    const stimCtx = document.getElementById('stim-c').getContext('2d');
+    const encCtx = document.getElementById('enc-c').getContext('2d');
+    function drawStimulusPreview() {
+      const CS = document.getElementById('stim-c'), scale = CS.width / GRID;
+      // Raw stimulus
+      const { contrast, tf, sf } = params;
+      const t = simTime;
+      for (let y = 0; y < GRID; y++) {
+        for (let x = 0; x < GRID; x++) {
+          let v = 0;
+          if (stimType === 'grating') { const ph = (x / GRID) * sf * Math.PI * 2 - 2 * Math.PI * tf * t; v = (Math.sin(ph) + 1) / 2; }
+          else if (stimType === 'flash') { const per = 1 / tf; v = ((t % per) / per) < 0.45 ? 1 : 0; }
+          else if (stimType === 'bar') { const bx = ((t * tf * 0.25) % 1.0) * GRID; v = Math.abs(x - bx) < 1.5 ? 1 : 0; }
+          else { v = Math.random(); }
+          const L = Math.floor(v * contrast * 240);
+          stimCtx.fillStyle = `rgb(${L},${L},${L})`;
+          stimCtx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+      // Encoding preview
+      const cfg = currentConfig.input.encoding;
+      const t_min = cfg.t_min ?? 0, t_max = cfg.t_max ?? 100;
+      for (let y = 0; y < GRID; y++) {
+        for (let x = 0; x < GRID; x++) {
+          let v = 0;
+          if (stimType === 'grating') { const ph = (x / GRID) * sf * Math.PI * 2 - 2 * Math.PI * tf * t; v = (Math.sin(ph) + 1) / 2; }
+          else if (stimType === 'flash') { const per = 1 / tf; v = ((t % per) / per) < 0.45 ? 1 : 0; }
+          else if (stimType === 'bar') { const bx = ((t * tf * 0.25) % 1.0) * GRID; v = Math.abs(x - bx) < 1.5 ? 1 : 0; }
+          else { v = Math.random(); }
+          v *= contrast;
+          let r, g, b;
+          if (encoding === 'latency') {
+            const sT = (t_max - v * (t_max - t_min)) / t_max; // normalized spike time (0=early/bright, 1=late/dark)
+            r = Math.floor(sT * 80); g = Math.floor((1 - sT) * 140); b = Math.floor(sT * 200 + (1 - sT) * 60);
+          } else {
+            r = Math.floor(v * 220); g = Math.floor(v * 80); b = Math.floor(v * 180);
+          }
+          encCtx.fillStyle = `rgb(${r},${g},${b})`;
+          encCtx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+    }
+
+    // ── RF Kernel Viewer ──
+    function buildRFViewer() {
+      const rfInner = document.getElementById('rf-inner');
+      rfInner.innerHTML = '';
+      const TYPE_COLS = { M: '#F59E0B', P: '#60A5FA', K: '#6EE7B7' };
+      Object.keys(weightMatrices).forEach(popId => {
+        const { W, postN } = weightMatrices[popId];
+        const pop = currentConfig.populations.find(p => p.id === popId);
+        if (!pop) return;
+        // Compute average kernel across all neurons
+        const avg = new Float32Array(N_PRE);
+        for (let i = 0; i < postN; i++) for (let j = 0; j < N_PRE; j++) avg[j] += W[i * N_PRE + j];
+        let mn = Infinity, mx = -Infinity;
+        for (let j = 0; j < N_PRE; j++) { avg[j] /= postN; if (avg[j] < mn) mn = avg[j]; if (avg[j] > mx) mx = avg[j]; }
+        const card = document.createElement('div');
+        card.className = 'rf-card';
+        const lbl = document.createElement('div');
+        lbl.className = 'rf-lbl';
+        lbl.style.color = TYPE_COLS[pop.type];
+        lbl.textContent = popId;
+        const cnv = document.createElement('canvas');
+        cnv.className = 'rf-px';
+        const SZ = 64;
+        cnv.width = SZ; cnv.height = SZ;
+        cnv.style.width = SZ + 'px'; cnv.style.height = SZ + 'px';
+        cnv.style.border = `1px solid ${TYPE_COLS[pop.type]}44`;
+        const scale = SZ / GRID;
+        const rfCtx = cnv.getContext('2d');
+        for (let y = 0; y < GRID; y++) {
+          for (let x = 0; x < GRID; x++) {
+            const v = (avg[y * GRID + x] - mn) / (mx - mn + 1e-9);
+            // Diverging colormap: neg=blue, zero=dark, pos=orange
+            let r, g, b;
+            if (v < 0.5) { r = 0; g = Math.floor(v * 2 * 100); b = Math.floor((1 - v * 2) * 200); }
+            else { r = Math.floor((v - 0.5) * 2 * 240); g = Math.floor((v - 0.5) * 2 * 120); b = 0; }
+            rfCtx.fillStyle = `rgb(${r},${g},${b})`;
+            rfCtx.fillRect(x * scale, y * scale, scale, scale);
+          }
+        }
+        const sub = document.createElement('div');
+        sub.style.cssText = 'font-size:7.5px;color:#39445a;text-align:center;';
+        sub.textContent = `${pop.size}n · ${pop.neuron_model.type}`;
+        card.appendChild(lbl); card.appendChild(cnv); card.appendChild(sub);
+        rfInner.appendChild(card);
+      });
+    }
+
+    // ── Raster ──
+    const rasterCanvas = document.getElementById('raster-c');
+    const rasterCtx = rasterCanvas.getContext('2d');
+    let RW = 0, RH = 0;
+    function resizeRaster() {
+      const wrap = document.getElementById('raster-wrap');
+      RW = wrap.clientWidth; RH = wrap.clientHeight;
+      rasterCanvas.width = RW; rasterCanvas.height = RH;
+      rasterCanvas.style.width = RW + 'px'; rasterCanvas.style.height = RH + 'px';
+    }
+
+    const TYPE_COL = {
+      M: { stroke: '#F59E0B', fill: 'rgba(245,158,11,0.07)' },
+      P: { stroke: '#60A5FA', fill: 'rgba(96,165,250,0.06)' },
+      K: { stroke: '#6EE7B7', fill: 'rgba(110,231,183,0.05)' }
+    };
+
+    function drawRaster() {
+      rasterCtx.fillStyle = '#04070c';
+      rasterCtx.fillRect(0, 0, RW, RH);
+      const visCells = cells.filter(c => vis[c.type]);
+      const N = visCells.length;
+      if (N === 0) return;
+      const plotH = RH - 18;
+      const rowH = Math.max(4, plotH / N);
+      const tStart = simTime - RASTER_WIN, tSpan = RASTER_WIN;
+
+      // Vertical grid
+      rasterCtx.strokeStyle = 'rgba(255,255,255,0.03)';
+      rasterCtx.lineWidth = 0.5;
+      for (let i = 0; i <= 6; i++) {
+        const x = (i / 6) * RW;
+        rasterCtx.beginPath(); rasterCtx.moveTo(x, 0); rasterCtx.lineTo(x, plotH); rasterCtx.stroke();
+      }
+
+      visCells.forEach((cell, i) => {
+        const y = i * rowH;
+        const col = TYPE_COL[cell.type];
+        if (cell === selectedCell) {
+          rasterCtx.fillStyle = 'rgba(124,58,237,0.08)';
+          rasterCtx.fillRect(0, y, RW, rowH);
+        }
+        rasterCtx.strokeStyle = cell === selectedCell ? '#a78bfa' : col.stroke;
+        rasterCtx.lineWidth = rowH > 8 ? 1.2 : 0.8;
+        for (const spT of cell.spikes) {
+          if (spT < tStart) continue;
+          const x = ((spT - tStart) / tSpan) * RW;
+          rasterCtx.beginPath(); rasterCtx.moveTo(x, y + rowH * 0.1); rasterCtx.lineTo(x, y + rowH * 0.9); rasterCtx.stroke();
+        }
+      });
+      rasterCanvas._cellMap = visCells.map((cell, i) => ({ cell, y: i * rowH, h: rowH }));
+
+      // Time axis
+      rasterCtx.fillStyle = '#090e16';
+      rasterCtx.fillRect(0, plotH, RW, 18);
+      rasterCtx.fillStyle = 'rgba(92,104,128,0.7)';
+      rasterCtx.font = '7.5px JetBrains Mono, monospace';
+      rasterCtx.textAlign = 'center';
+      for (let i = 0; i <= 6; i++) {
+        rasterCtx.fillText(((tStart + (i / 6) * tSpan)).toFixed(2) + 's', (i / 6) * RW, RH - 3);
+      }
+      // Current time line
+      rasterCtx.strokeStyle = 'rgba(124,58,237,0.5)';
+      rasterCtx.lineWidth = 0.8;
+      rasterCtx.setLineDash([3, 4]);
+      rasterCtx.beginPath(); rasterCtx.moveTo(RW - 1, 0); rasterCtx.lineTo(RW - 1, plotH); rasterCtx.stroke();
+      rasterCtx.setLineDash([]);
+    }
+
+    rasterCanvas.addEventListener('click', e => {
+      const rect = rasterCanvas.getBoundingClientRect();
+      const my = e.clientY - rect.top;
+      if (!rasterCanvas._cellMap) return;
+      for (const { cell, y, h } of rasterCanvas._cellMap) {
+        if (my >= y && my < y + h) {
+          selectedCell = (selectedCell === cell) ? null : cell;
+          if (selectedCell) { selectedCell.vTrace = []; }
+          document.getElementById('sel-lbl').textContent = selectedCell ? `${selectedCell.id} · ${selectedCell.modelType}` : 'click neuron to trace';
+          break;
+        }
+      }
+    });
+
+    // ── Trace ──
+    const traceCanvas = document.getElementById('trace-c');
+    const traceCtx = traceCanvas.getContext('2d');
+    function resizeTrace() {
+      const wrap = traceCanvas.parentElement;
+      traceCanvas.width = wrap.clientWidth;
+      traceCanvas.height = wrap.clientHeight;
+    }
+
+    function drawTrace() {
+      const W = traceCanvas.width, H = traceCanvas.height;
+      traceCtx.fillStyle = '#04070c';
+      traceCtx.fillRect(0, 0, W, H);
+      if (!selectedCell || selectedCell.vTrace.length < 2) {
+        traceCtx.fillStyle = 'rgba(92,104,128,0.3)';
+        traceCtx.font = '9px JetBrains Mono, monospace';
+        traceCtx.textAlign = 'center';
+        traceCtx.fillText('select a neuron in the raster', W / 2, H / 2 + 3);
+        return;
+      }
+      const col = TYPE_COL[selectedCell.type];
+      const tEnd = simTime, tStart = tEnd - TRACE_WIN;
+      const isIzh = selectedCell.modelType !== 'lif';
+      const V_min = isIzh ? -75 : -80, V_max = isIzh ? 35 : -40;
+      const pL = 36, pR = 6, pT = 8, pB = 16, pW = W - pL - pR, pH = H - pT - pB;
+
+      traceCtx.strokeStyle = 'rgba(255,255,255,0.04)'; traceCtx.lineWidth = 0.5;
+      const gridVs = isIzh ? [-70, -50, -30, 0, 30] : [-75, -65, -55, -45];
+      gridVs.forEach(v => {
+        const y = pT + pH * (1 - (v - V_min) / (V_max - V_min));
+        if (y < pT || y > pT + pH) return;
+        traceCtx.beginPath(); traceCtx.moveTo(pL, y); traceCtx.lineTo(W - pR, y); traceCtx.stroke();
+        traceCtx.fillStyle = 'rgba(92,104,128,0.6)';
+        traceCtx.font = '7px JetBrains Mono'; traceCtx.textAlign = 'right';
+        traceCtx.fillText(v + 'mV', pL - 2, y + 3);
+      });
+
+      const vth = selectedCell.modelType === 'lif' ? selectedCell.modelParams.v_thresh : 30;
+      const thY = pT + pH * (1 - (vth - V_min) / (V_max - V_min));
+      if (thY >= pT && thY <= pT + pH) {
+        traceCtx.strokeStyle = 'rgba(239,68,68,0.3)'; traceCtx.lineWidth = 0.7;
+        traceCtx.setLineDash([3, 4]);
+        traceCtx.beginPath(); traceCtx.moveTo(pL, thY); traceCtx.lineTo(W - pR, thY); traceCtx.stroke();
+        traceCtx.setLineDash([]);
+        traceCtx.fillStyle = 'rgba(239,68,68,0.5)'; traceCtx.font = '7px JetBrains Mono';
+        traceCtx.textAlign = 'left'; traceCtx.fillText('Vth', pL + 2, thY - 2);
+      }
+
+      const trace = selectedCell.vTrace.filter(p => p.t >= tStart);
+      if (trace.length < 2) return;
+      traceCtx.beginPath(); traceCtx.strokeStyle = col.stroke; traceCtx.lineWidth = 1.2;
+      trace.forEach((p, i) => {
+        const x = pL + ((p.t - tStart) / TRACE_WIN) * pW;
+        const clamped = Math.min(Math.max(p.v, V_min), V_max);
+        const y = pT + pH * (1 - (clamped - V_min) / (V_max - V_min));
+        i === 0 ? traceCtx.moveTo(x, y) : traceCtx.lineTo(x, y);
+      });
+      traceCtx.stroke();
+
+      traceCtx.fillStyle = 'rgba(92,104,128,0.5)'; traceCtx.font = '7px JetBrains Mono'; traceCtx.textAlign = 'center';
+      [0, .5, 1].forEach(f => { traceCtx.fillText((tStart + f * TRACE_WIN).toFixed(2) + 's', pL + f * pW, H - 2); });
+    }
+
+    // ── Metrics ──
+    function updateMetrics() {
+      const w = 0.5, cut = simTime - w;
+      let sm = 0, sp = 0, sk = 0, nm = 0, np = 0, nk = 0, tot = 0;
+      cells.forEach(c => {
+        const r = c.spikes.filter(t => t > cut).length / w;
+        if (c.type === 'M') { sm += r; nm++; } else if (c.type === 'P') { sp += r; np++; } else { sk += r; nk++; }
+        tot += c.spikes.filter(t => t > cut).length;
+      });
+      document.getElementById('r-m').textContent = nm ? ((sm / nm).toFixed(1)) : '0.0';
+      document.getElementById('r-p').textContent = np ? ((sp / np).toFixed(1)) : '0.0';
+      document.getElementById('r-k').textContent = nk ? ((sk / nk).toFixed(1)) : '0.0';
+      document.getElementById('r-tot').textContent = tot;
+      document.getElementById('simt').textContent = `t = ${simTime.toFixed(3)} s`;
+    }
+
+    function updatePopInfo() {
+      const pi = document.getElementById('pop-info'); pi.innerHTML = '';
+      const TC = { M: '#F59E0B', P: '#60A5FA', K: '#6EE7B7' };
+      currentConfig.populations.forEach(pop => {
+        const wm = weightMatrices[pop.id];
+        const row = document.createElement('div'); row.className = 'pi-row';
+        row.innerHTML = `<span class="pi-dot" style="background:${TC[pop.type]}"></span>
+      <span class="pi-name">${pop.id} (${pop.size})</span>
+      <span class="pi-model pm-${pop.neuron_model.type}">${pop.neuron_model.type}</span>
+      <span class="pi-detail">${wm ? wm.source : '–'}</span>`;
+        pi.appendChild(row);
+      });
+      // Weight status in LP
+      const wlp = document.getElementById('wt-status-lp'); wlp.innerHTML = '';
+      Object.entries(weightMatrices).forEach(([id, wm]) => {
+        const div = document.createElement('div'); div.className = 'wt-row';
+        div.innerHTML = `<span class="wt-dot ${wm.source === 'npy' ? 'loaded' : 'gen'}"></span>
+      <span class="wt-name">${id}.npy</span>
+      <span class="wt-src">${wm.source === 'npy' ? 'file loaded' : 'auto-gen'}</span>`;
+        wlp.appendChild(div);
+      });
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 10. ANIMATION LOOP
+    // ═══════════════════════════════════════════════════════
+    let frameN = 0;
+    function loop() {
+      if (!running) return;
+      for (let s = 0; s < stepsPerFrame; s++) simStep();
+      frameN++;
+      drawStimulusPreview();
+      drawRaster();
+      drawTrace();
+      if (frameN % 6 === 0) { drawAnatomy(); updateMetrics(); }
+      animId = requestAnimationFrame(loop);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 11. UI FUNCTIONS
+    // ═══════════════════════════════════════════════════════
+    function toggleRun() {
+      running = !running;
+      const btn = document.getElementById('run-btn');
+      const dot = document.getElementById('sdot');
+      if (running) {
+        btn.textContent = '■ STOP'; btn.classList.add('stop');
+        dot.className = 'status-dot run';
+        animId = requestAnimationFrame(loop);
+      } else {
+        btn.textContent = '▶ RUN'; btn.classList.remove('stop');
+        dot.className = 'status-dot pause';
+        if (animId) cancelAnimationFrame(animId);
+      }
+    }
+
+    function resetSim() {
+      if (running) toggleRun();
+      simTime = 0; selectedCell = null;
+      document.getElementById('sdot').className = 'status-dot idle';
+      document.getElementById('sel-lbl').textContent = 'click neuron to trace';
+      buildFromConfig(currentConfig, pendingWeightBuffers);
+      updatePopInfo(); buildRFViewer();
+      drawRaster(); drawTrace(); drawAnatomy(); updateMetrics();
+    }
+
+    function setStim(type) {
+      stimType = type;
+      ['grating', 'flash', 'bar', 'noise'].forEach(t => document.getElementById(`sb-${t}`).classList.toggle('on', t === type));
+    }
+
+    function setEncoding(enc) {
+      encoding = enc;
+      currentConfig.input.encoding.scheme = enc;
+      ['latency', 'rate'].forEach(e => document.getElementById(`enc-${e}`).classList.toggle('on', e === enc));
+    }
+
+    function toggleVis(type) {
+      vis[type] = !vis[type];
+      document.getElementById(`vis-${type}`).classList.toggle('on', vis[type]);
+    }
+
+    // ── Modal ──
+    function openModal() {
+      document.getElementById('json-editor').value = JSON.stringify(currentConfig, null, 2);
+      rebuildWeightUploadTable();
+      document.getElementById('modal-bg').classList.add('open');
+    }
+    function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+
+    function rebuildWeightUploadTable() {
+      const table = document.getElementById('wt-upload-table');
+      table.innerHTML = '';
+      let cfg;
+      try { cfg = JSON.parse(document.getElementById('json-editor').value); } catch { cfg = currentConfig; }
+      const pops = cfg.populations || [];
+      const TC = { M: 'lm', P: 'lp', K: 'lk' };
+      const TCc = { M: '#F59E0B', P: '#60A5FA', K: '#6EE7B7' };
+      const connMap = {};
+      (cfg.connections || []).forEach(c => { connMap[c.to] = c; });
+
+      pops.forEach(pop => {
+        const conn = connMap[pop.id] || {};
+        const wm = weightMatrices[pop.id];
+        const src = pendingWeightBuffers[pop.id] ? 'npy' : (wm ? wm.source : 'gen');
+        const row = document.createElement('div'); row.className = 'wt-upload-row';
+        row.innerHTML = `
+      <span class="wt-pop-badge" style="background:${TCc[pop.type]}22;color:${TCc[pop.type]}">${pop.id}</span>
+      <div><div class="wt-info">${conn.weight_file || 'auto'}</div><div class="wt-shape">[${pop.size}×${N_PRE}]&nbsp;${conn.mapping || '?'}</div></div>
+      <span class="wt-status-badge ${src === 'npy' ? 'loaded' : 'gen'}">${src === 'npy' ? 'file loaded' : 'auto-gen'}</span>
+      <div class="btn wt-upload-btn" style="font-size:8.5px">Upload .npy<input type="file" accept=".npy,.NPY" onchange="handleNpyFile(this,'${pop.id}')"></div>
+      <button class="btn" onclick="clearNpy('${pop.id}')" style="font-size:8px">✕ Clear</button>`;
+        table.appendChild(row);
+      });
+    }
+
+    function handleJsonFile(input) {
+      const file = input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('json-editor').value = e.target.result;
+        rebuildWeightUploadTable();
+      };
+      reader.readAsText(file);
+    }
+
+    function handleNpyFile(input, popId) {
+      const file = input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        pendingWeightBuffers[popId] = e.target.result;
+        rebuildWeightUploadTable();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function clearNpy(popId) {
+      delete pendingWeightBuffers[popId];
+      rebuildWeightUploadTable();
+    }
+
+    // Drag-drop for JSON
+    const jsonDrop = document.getElementById('json-drop');
+    jsonDrop.addEventListener('dragover', e => { e.preventDefault(); jsonDrop.classList.add('over'); });
+    jsonDrop.addEventListener('dragleave', () => jsonDrop.classList.remove('over'));
+    jsonDrop.addEventListener('drop', e => {
+      e.preventDefault(); jsonDrop.classList.remove('over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.json')) {
+        const reader = new FileReader();
+        reader.onload = ev => { document.getElementById('json-editor').value = ev.target.result; rebuildWeightUploadTable(); };
+        reader.readAsText(file);
+      }
+    });
+
+    function runValidate() {
+      let cfg;
+      const txt = document.getElementById('json-editor').value;
+      const valSec = document.getElementById('val-section');
+      try { cfg = JSON.parse(txt); } catch (e) {
+        valSec.innerHTML = `<div class="val-row err"><span class="val-icon">✕</span><span class="val-msg">JSON parse error: ${e.message}</span></div>`;
+        document.getElementById('btn-apply').disabled = true;
+        configValidated = false;
+        return;
+      }
+      const { valid, errors, warns, oks } = validateConfig(cfg);
+      configValidated = valid;
+      document.getElementById('btn-apply').disabled = !valid;
+      let html = oks.map(m => `<div class="val-row ok"><span class="val-icon">✓</span><span class="val-msg">${m}</span></div>`).join('');
+      html += warns.map(m => `<div class="val-row warn"><span class="val-icon">⚠</span><span class="val-msg">${m}</span></div>`).join('');
+      html += errors.map(m => `<div class="val-row err"><span class="val-icon">✕</span><span class="val-msg">${m}</span></div>`).join('');
+      if (valid && warns.length === 0) html += `<div class="val-row ok"><span class="val-icon">★</span><span class="val-msg">Config is valid — ready to apply</span></div>`;
+      valSec.innerHTML = html;
+    }
+
+    function applyConfig() {
+      const txt = document.getElementById('json-editor').value;
+      let cfg;
+      try { cfg = JSON.parse(txt); } catch (e) { alert('Invalid JSON: ' + e.message); return; }
+      const { valid, errors } = validateConfig(cfg);
+      if (!valid) { alert('Config validation failed:\n' + errors.join('\n')); return; }
+
+      const wasRunning = running;
+      if (running) toggleRun();
+      simTime = 0; selectedCell = null;
+
+      // Sync encoding from config
+      if (cfg.input?.encoding?.scheme) {
+        encoding = cfg.input.encoding.scheme;
+        ['latency', 'rate'].forEach(e => document.getElementById(`enc-${e}`).classList.toggle('on', e === encoding));
+      }
+
+      currentConfig = cfg;
+      buildFromConfig(currentConfig, pendingWeightBuffers);
+      updatePopInfo(); buildRFViewer(); drawAnatomy();
+
+      // Update badge
+      const badge = document.getElementById('cfg-badge');
+      badge.textContent = `LGN-OEF-1.0 LOADED`;
+      badge.className = 'cfg-badge loaded';
+
+      closeModal();
+      document.getElementById('sdot').className = 'status-dot idle';
+      document.getElementById('sel-lbl').textContent = 'click neuron to trace';
+      drawRaster(); drawTrace(); updateMetrics();
+
+      if (wasRunning) setTimeout(toggleRun, 100);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // 12. INIT
+    // ═══════════════════════════════════════════════════════
+    function init() {
+      resizeRaster(); resizeTrace();
+      buildFromConfig(currentConfig, {});
+      updatePopInfo(); buildRFViewer();
+      drawAnatomy(); drawRaster(); drawTrace(); drawStimulusPreview(); updateMetrics();
+      document.getElementById('json-editor').value = JSON.stringify(DEFAULT_CONFIG, null, 2);
+
+      window.addEventListener('resize', () => {
+        resizeRaster(); resizeTrace();
+        drawRaster(); drawTrace();
+      });
+      setTimeout(toggleRun, 600);
+    }
+    window.addEventListener('load', init);
+  </script>
+</body>
+
+</html>

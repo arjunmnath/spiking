@@ -22,9 +22,11 @@ class CIFAR10:
         trainset = torchvision.datasets.CIFAR10(
             root=self.data_dir, train=True, download=True, transform=self.transform_train
         )
+
         testset = torchvision.datasets.CIFAR10(
             root=self.data_dir, train=False, download=True, transform=self.transform_test
         )
+
         train_sampler = DistributedSampler(trainset) if is_initialized() else None
         trainloader = DataLoader(
             trainset,
